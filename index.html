@@ -1132,7 +1132,7 @@ div.tilebtn { cursor: default; }
 
   // ------------------------------------------------------------ online rooms (browser to browser, the host's page runs the game)
   var net = { mode: 'local', seat: 0, names: [], peer: null, conns: [], host: null, code: '', myName: '', lobby: false, inLobby: false, waiting: false, pending: null, q: [], playing: false,
-    reset: function () { var p = net.peer; net.peer = null; net.mode = 'local'; net.conns = []; net.host = null; net.names = []; net.pending = null; net.waiting = false; net.lobby = false; net.inLobby = false; net.q = []; net.playing = false; try { if (p) p.destroy(); } catch (e) { /* already closed */ } },
+    reset: function () { net.conns.forEach(function (c) { clearTimeout(c.timer); }); var p = net.peer; net.peer = null; net.lost = false; net.mode = 'local'; net.conns = []; net.host = null; net.names = []; net.pending = null; net.waiting = false; net.lobby = false; net.inLobby = false; net.q = []; net.playing = false; try { if (p) p.destroy(); } catch (e) { /* already closed */ } },
     send: function (msg) { if (net.host && net.host.open) net.host.send(msg); },
     cast: function (ev) {
       if (net.mode !== 'host' || net.lobby) return;
@@ -1195,19 +1195,32 @@ div.tilebtn { cursor: default; }
       if (t === 'unavailable-id') { net.reset(); netMsg('Room code ' + code + ' is already in use. Pick another.'); }
       else if (net.lobby && !net.conns.length && $('netmsg')) { net.reset(); netMsg('Could not open the room (' + (t || 'network') + '). Check your connection and try again.'); }
     });
+    peer.on('disconnected', function () { setTimeout(function () { if (net.peer === peer && !peer.destroyed && peer.disconnected) { try { peer.reconnect(); } catch (e) { /* try again on the next visit */ } } }, 1000); });
     peer.on('connection', function (conn) {
       conn.on('open', function () {
-        if (net.peer !== peer) return;
-        if (!net.lobby || net.conns.length >= 3) { conn.send({ k: 'full' }); return; }
-        net.conns.push({ conn: conn, seat: -1, name: 'Player' }); castLobby();
+        if (net.peer !== peer || !net.lobby) return; // during a game, wait for a hello carrying a seat token
+        if (net.conns.length >= 3) { conn.send({ k: 'full' }); return; }
+        net.conns.push({ conn: conn, seat: -1, name: 'Player', token: null }); castLobby();
       });
       conn.on('data', function (msg) { hostHears(conn, msg); });
       conn.on('close', function () { hostLost(conn); });
     });
   }
   function hostHears(conn, msg) {
-    var c = connOf(conn); if (!c || !msg) return;
-    if (msg.k === 'hello') { c.name = clean(msg.name); castLobby(); return; }
+    if (!msg) return;
+    var c = connOf(conn);
+    if (!c && msg.k === 'hello' && !net.lobby) { // a player coming back to their seat
+      var back = null; net.conns.forEach(function (x) { if (x.token && x.token === msg.token) back = x; });
+      if (!back) { try { conn.send({ k: 'full' }); } catch (e) { /* closed */ } return; }
+      if (back.conn && back.conn !== conn) { try { back.conn.close(); } catch (e) { /* already closed */ } }
+      back.conn = conn; clearTimeout(back.timer); cfg.seats[back.seat] = 'remote'; net.names[back.seat] = back.name;
+      renderScores(); net.cast(null);
+      if (S && !S.over && S.turn === back.seat && ui.busy && !net.waiting) { /* a bot was mid-turn for them; it finishes, then they play */ }
+      else if (S && !S.over && S.turn === back.seat) waitRemote(back.seat);
+      return;
+    }
+    if (!c) return;
+    if (msg.k === 'hello') { c.name = clean(msg.name); c.token = msg.token || null; castLobby(); return; }
     if (net.lobby || !S || S.over) return;
     if (msg.k === 'move' || msg.k === 'skip') { net.pending = { seat: c.seat, msg: msg }; if (net.waiting) takeRemote(); }
   }
@@ -1228,9 +1241,15 @@ div.tilebtn { cursor: default; }
     var c = connOf(conn); if (!c) return;
     if (net.lobby) { net.conns.splice(net.conns.indexOf(c), 1); castLobby(); return; }
     c.conn = null;
-    if (c.seat >= 0 && S && !S.over) { // a player dropped out: a bot takes the seat so the game can go on
-      cfg.seats[c.seat] = 'medium'; net.names[c.seat] = c.name + ' (bot)'; net.cast(null); renderScores();
-      if (net.waiting && S.turn === c.seat) { net.waiting = false; botTurn(c.seat); }
+    if (c.seat >= 0 && S && !S.over && cfg.seats[c.seat] === 'remote') { // they stepped away: hold the seat for a while
+      net.names[c.seat] = c.name + ' (away)'; net.cast(null); renderScores();
+      if (net.waiting && S.turn === c.seat) setStatus('Waiting for ' + tag(c.seat) + ' to come back…');
+      clearTimeout(c.timer);
+      c.timer = setTimeout(function () { // still gone after 3 minutes: a bot plays for them until they return
+        if (c.conn || !S || S.over) return;
+        cfg.seats[c.seat] = 'medium'; net.names[c.seat] = c.name + ' (bot until back)'; net.cast(null); renderScores();
+        if (net.waiting && S.turn === c.seat) { net.waiting = false; botTurn(c.seat); }
+      }, 180000);
     }
   }
   function hostStart() {
@@ -1243,21 +1262,57 @@ div.tilebtn { cursor: default; }
     setPalette(randomPalette()); S = E.newGame({ players: total }); started = true; lastBounds = ''; feed = []; sole = 0; viewP = 0; ui.cover = false;
     hideSheet(); fit(true, true); renderScores(); net.cast(null); next();
   }
+  function seatToken(code) {
+    var k = 'rival-lines-seat-' + code, t = null;
+    try { t = localStorage.getItem(k); } catch (e) { t = null; }
+    if (!t) { t = Math.random().toString(36).slice(2) + Date.now().toString(36); try { localStorage.setItem(k, t); } catch (e) { /* private mode */ } }
+    return t;
+  }
   function joinRoomWith(code, name, ice) {
-    net.reset(); net.mode = 'guest'; net.code = code; net.myName = name; netMsg('Connecting to room ' + code + '…');
-    var peer = net.peer = new window.Peer({ config: { iceServers: ice } });
-    peer.on('open', function () {
-      if (net.peer !== peer) return;
-      var conn = net.host = peer.connect(roomId(code), { reliable: true, serialization: 'json' });
-      conn.on('open', function () { conn.send({ k: 'hello', name: name }); netMsg('Joined room ' + code + '. Waiting for the host…'); });
-      conn.on('data', guestHears);
-      conn.on('close', function () { if (net.peer !== peer) return; net.reset(); ui.busy = true; setStatus('The host closed the room.'); showStart(); netMsg('The host closed the room.'); });
-    });
+    net.reset(); net.mode = 'guest'; net.code = code; net.myName = name; net.ice = ice; net.token = seatToken(code); net.lost = false; net.retries = 0;
+    newGuestPeer();
+  }
+  function newGuestPeer() {
+    var peer = net.peer = new window.Peer({ config: { iceServers: net.ice } });
+    peer.on('open', function () { if (net.peer === peer) guestConnect(); });
+    peer.on('disconnected', function () { if (net.peer === peer && !peer.destroyed) { try { peer.reconnect(); } catch (e) { /* retried below */ } } });
     peer.on('error', function (err) {
-      if (net.peer !== peer) return; var t = err && err.type; net.reset();
-      netMsg(t === 'peer-unavailable' ? 'No room called ' + code + '. Check the code, and that the host has opened it.' : 'Could not connect (' + (t || 'network') + '). Check your connection and try again.');
+      if (net.peer !== peer || net.lost) return; // while reconnecting, keep trying quietly
+      var t = err && err.type; net.reset();
+      netMsg(t === 'peer-unavailable' ? 'No room called ' + net.code + '. Check the code, and that the host has opened it.' : 'Could not connect (' + (t || 'network') + '). Check your connection and try again.');
     });
   }
+  function guestConnect() {
+    var peer = net.peer; if (!peer || peer.destroyed || peer.disconnected) return;
+    var conn = net.host = peer.connect(roomId(net.code), { reliable: true, serialization: 'json' });
+    conn.on('open', function () {
+      if (net.host !== conn) return;
+      conn.send({ k: 'hello', name: net.myName, token: net.token });
+      if (net.lost) { net.lost = false; net.retries = 0; setStatus('Back in the game.'); } else netMsg('Joined room ' + net.code + '. Waiting for the host…');
+    });
+    conn.on('data', guestHears);
+    conn.on('close', function () { if (net.mode === 'guest' && net.host === conn) guestLost(); });
+  }
+  function guestLost() {
+    if (!started || !S || S.over) { var code = net.code; net.reset(); ui.busy = true; showStart(); netMsg('Lost the connection to room ' + code + '.'); return; }
+    if (net.lost) return;
+    net.lost = true; net.retries = 0; ui.busy = true; setStatus('Connection lost. Reconnecting…'); renderAll(); guestRetry();
+  }
+  function guestRetry() {
+    if (net.mode !== 'guest' || !net.lost) return;
+    if (++net.retries > 60) { var code = net.code; net.reset(); ui.busy = true; showStart(); netMsg('Could not get back into room ' + code + '. Join again with the same code and name to take your seat back.'); return; }
+    var peer = net.peer;
+    if (!peer || peer.destroyed) newGuestPeer();
+    else if (peer.disconnected) { try { peer.reconnect(); } catch (e) { newGuestPeer(); } setTimeout(guestConnect, 1500); }
+    else guestConnect();
+    setTimeout(guestRetry, 4000);
+  }
+  // phones pause pages in the background: on coming back, repair the connection straight away
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (net.mode === 'host' && net.peer && !net.peer.destroyed && net.peer.disconnected) { try { net.peer.reconnect(); } catch (e) { /* next visit */ } }
+    if (net.mode === 'guest') { if (net.lost) guestRetry(); else if (net.host && !net.host.open && started) guestLost(); }
+  });
   function guestHears(msg) {
     if (!msg || net.mode !== 'guest') return;
     if (msg.k === 'full') { net.reset(); netMsg('That room is full or its game has already started.'); return; }
