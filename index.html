@@ -176,9 +176,9 @@ div.tilebtn { cursor: default; }
       <button type="button" class="btn" id="pass">Pass</button>
       <button type="button" class="btn" id="swap">Trade in hand</button>
       <button type="button" class="btn" id="rulesBtn">Rules</button>
-      <button type="button" class="btn" id="tilesTop">Tiles left</button>
       <button type="button" class="btn" id="restart">Restart</button>
       <label class="toggle" for="anim"><input type="checkbox" id="anim" checked> Animation</label>
+      <label class="toggle" for="snd"><input type="checkbox" id="snd" checked> Sound</label>
     </div>
   </footer>
   <div id="overlay"></div>
@@ -297,7 +297,9 @@ div.tilebtn { cursor: default; }
     if (!hasNb) return null;
     if (frozenCap && !caps.length && !merge.length) return null; // not on its own: only as part of a move on a live line
     var track = hasTrack(t), i;
-    for (i = 0; i < caps.length; i++) { L = A.lines[caps[i]]; if (L.owner !== P && !(track && merge.indexOf(L.id) >= 0)) return null; }
+    var ownCap = false;
+    for (i = 0; i < caps.length; i++) { L = A.lines[caps[i]]; if (L.owner === P || (track && merge.indexOf(L.id) >= 0)) ownCap = true; }
+    if (caps.length && !ownCap && !(track && merge.length)) return null; // stations only come with a move on your own line
     if (track && S.rule === 'link' && t !== 'penn') { // rulebook takeover: the piece must also join a line of yours or a free platform
       var rival = false, own = false;
       for (i = 0; i < merge.length; i++) { if (A.lines[merge[i]].owner === P) own = true; else rival = true; }
@@ -327,7 +329,7 @@ div.tilebtn { cursor: default; }
       L = A2.lines[touched[i]];
       if (L.frozen) continue;
       if (L.loose.length === 0) {
-        if (L.body < 2) { if (L.hasPenn) continue; return null; } // a line needs 2+ body pieces to finish; Penn does not count
+        if (L.body < 2) { if (L.hasPenn || L.owner !== P) continue; return null; } // a rival's one-piece line capped by your spare station just goes dead // a line needs 2+ body pieces to finish; Penn does not count
         if (!L.frozen) finished.push(L);
       }
     }
@@ -371,11 +373,11 @@ div.tilebtn { cursor: default; }
       if (b === 'p') continue;
       if (L.frozen) { if (a === 'p') { frozenTouch = true; continue; } return 'The line on the ' + SIDE[d] + ' is frozen until its broken track is repaired. Only a station can touch its end.'; }
       if (L.locked) return 'The line on the ' + SIDE[d] + ' is finished and locked.';
-      if (a === 'p' && L.owner !== P) return 'Only the owner can add a station, and the line on the ' + SIDE[d] + ' is not yours.';
       if (a !== 'p' && S.bridgeSafe && L.owner !== P && DEFS[n.t].kind === 'bridge') return 'That line ends on a bridge, so it cannot be taken from there.';
     }
     if (!hasNb) return 'A tile has to touch the tiles already on the table.';
     if (simPlace(S, P, t, rot, x, y)) return '';
+    if (true) { var anyOwn = false; for (d = 0; d < 4; d++) { n = S.board.get(key(x + DX[d], y + DY[d])); if (!n || !hasTrack(n.t) || edgeOf(t, rot, d) !== 'p') continue; b = edgeOf(n.t, n.rot, opp(d)); if ((b === 't' || b === 'x') && lineAt(A, n.x, n.y).owner === P) anyOwn = true; } if (DEFS[t].kind === 'station' && !anyOwn) return 'A station has to go on one of your own lines. Its other stations can then touch anyone\'s line.'; }
     if (frozenTouch) return 'A station can only touch a frozen line when the same tile also goes on one of your live lines.';
     if (S.rule === 'link' && simPlace(Object.assign({}, S, { rule: 'any' }), P, t, rot, x, y)) return 'With this takeover rule, the piece must also join a line of yours or a free station.';
     return 'That would finish a line with only one piece of track. A line needs two, and Penn does not count as one.';
@@ -444,11 +446,11 @@ div.tilebtn { cursor: default; }
     if (m.type === 'sabotage') ev.frozen = { owner: res.line.owner, track: res.line.track };
     S.board = res.board;
     res.finished.forEach(function (L) {
-      var pts = lineValue(L), lb = label(S, P);
+      var pts = lineValue(L), lb = label(S, P), who = L.owner >= 0 ? L.owner : P;
       L.cells.forEach(function (c) { c.lk = 1; c.lb = lb; });
-      S.scores[P] += pts;
-      S.lines.push({ o: P, label: lb, track: L.body, platforms: L.platforms, pts: pts });
-      ev.finished.push({ cells: L.cells.map(function (c) { return [c.x, c.y]; }), pts: pts, label: lb, track: L.body, platforms: L.platforms });
+      S.scores[who] += pts;
+      S.lines.push({ o: who, label: lb, track: L.body, platforms: L.platforms, pts: pts });
+      ev.finished.push({ o: who, cells: L.cells.map(function (c) { return [c.x, c.y]; }), pts: pts, label: lb, track: L.body, platforms: L.platforms });
     });
     S.an = analyze(S.board);
     S.used = S.used || {}; S.used[t] = (S.used[t] || 0) + 1;
@@ -496,14 +498,14 @@ div.tilebtn { cursor: default; }
   'use strict';
   var E = root.Engine;
   function unseen(S, P) { var c = {}, U = 0; var pool = S.bag.slice(); S.hands.forEach(function (h, i) { if (i !== P) pool = pool.concat(h); }); pool.forEach(function (t) { c[t] = (c[t] || 0) + 1; U++; }); return { c: c, U: U }; }
-  function pts(res) { var s = 0; res.finished.forEach(function (L) { s += E.lineValue(L); }); return s; }
+  function pts(res, P) { var s = 0; res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -1) * E.lineValue(L); }); return s; }
   function holds(hand, pred) { for (var i = 0; i < hand.length; i++) if (pred(E.DEFS[hand[i]])) return true; return false; }
 
   function base(S, P, m) {
     var def = E.DEFS[m.t], r = m.res, s = Math.random() * 0.8, hand = S.hands[P], L, p;
     var haveStation = holds(hand, function (d) { return d.kind === 'station'; });
     if (m.type === 'place') {
-      p = pts(r); s += 12 * p;
+      p = pts(r, P); s += 12 * p;
       var tk = 0; r.taken.forEach(function (x) { tk += x.track; }); s += 1.5 * tk;
       if (E.hasTrack(m.t)) {
         L = r.line;
@@ -528,7 +530,7 @@ div.tilebtn { cursor: default; }
         s += 0.35 * pot + (L.loose.length === 1 ? 0.5 * pot : 0) + (haveFix ? 0.3 * pot : 0) - 3 - (L.frozen ? 5 : 0) - (L.track < 3 ? 5 : 0);
       }
     } else { // repair: take the line
-      L = r.line; p = pts(r);
+      L = r.line; p = pts(r, P);
       s += 12 * p + 2 + 1.2 * L.track - (r.stillFrozen ? 4 : 0) - (def.kind === 'penn' ? 3 : 0);
       if (L.loose.length === 1 && haveStation) s += 0.3 * E.lineValue(L);
     }
@@ -547,7 +549,7 @@ div.tilebtn { cursor: default; }
       if (12 * prob <= best) return;
       for (var c = 0; c < list.length; c++) for (var r = 0; r < rots.length; r++) {
         var res = E.simPlace(S2, O, t, rots[r], list[c][0], list[c][1]);
-        if (res && res.finished.length) { var v = pts(res) * prob; if (v > best) best = v; }
+        if (res && res.finished.length) { var v = pts(res, O) * prob; if (v > best) best = v; }
       }
     });
     return best;
@@ -861,9 +863,11 @@ div.tilebtn { cursor: default; }
   function describe(m) {
     var r = m.res, def = E.DEFS[m.t], pts = 0, f;
     if (m.type === 'sabotage') return 'Breaks this track and freezes ' + poss(r.line.owner) + ' ' + plural(r.line.body, 'track') + ' line. Whoever lays the same shape on it takes the line.';
-    r.finished.forEach(function (L) { pts += E.lineValue(L); });
+    var mineF = r.finished.filter(function (L) { return L.owner === viewP || r.taken.indexOf(L) >= 0 || L.cells.some(function (c) { return c.x === m.x && c.y === m.y; }); }), theirsF = r.finished.filter(function (L) { return mineF.indexOf(L) < 0; });
+    mineF.forEach(function (L) { pts += E.lineValue(L); });
     if (m.type === 'repair' && !r.finished.length) return 'Repairs the track. The whole line becomes yours' + (r.stillFrozen ? ', but another break still freezes it.' : '.');
-    if (r.finished.length) { f = r.finished[0]; return 'Finishes a line: ' + f.body + ' track × ' + plural(Math.max(1, f.platforms), 'station') + (r.finished.length > 1 ? ', and another. ' : ' = ') + '<b class="hi">' + pts + ' points</b>.'; }
+    if (theirsF.length && !mineF.length) return 'Caps your line, and your other station finishes ' + poss(theirsF[0].owner) + ' line. It scores ' + E.lineValue(theirsF[0]) + ' for them.';
+    if (mineF.length) { f = mineF[0]; return (theirsF.length ? 'Also finishes ' + poss(theirsF[0].owner) + ' line (+' + E.lineValue(theirsF[0]) + ' for them). ' : '') + 'Finishes a line: ' + f.body + ' track × ' + plural(Math.max(1, f.platforms), 'station') + (mineF.length > 1 ? ', and another. ' : ' = ') + '<b class="hi">' + pts + ' points</b>.'; }
     var tk = 0; r.taken.forEach(function (L) { tk += L.body; });
     if (def.kind === 'station') return r.capped.length ? 'Puts a station on your line. ' + plural(Math.max(0, r.capped[0].loose.length - r.capped.length), 'open end') + ' left on it.' : 'Builds a station box. Its stations are open to anyone.';
     if (tk && def.kind === 'penn') return 'Penn takes ' + poss(r.taken[0].owner) + ' line (' + plural(tk, 'track') + ') and caps this end.';
@@ -877,7 +881,7 @@ div.tilebtn { cursor: default; }
     if (ev.type === 'swap') return B + 'traded in tiles.';
     if (ev.type === 'pass') return B + 'passed.';
     if (ev.type === 'sabotage') return B + 'broke a track on ' + poss(ev.frozen.owner) + ' line. It is frozen.';
-    if (ev.finished.length) { f = ev.finished[0]; return B + 'finished a line: ' + f.track + ' track × ' + Math.max(1, f.platforms) + ' stations = <b class="hi">' + f.pts + '</b>.'; }
+    if (ev.finished.length) { f = ev.finished[0]; if (f.o !== undefined && f.o !== ev.player) return B + 'finished ' + poss(f.o) + ' line with a station: +' + f.pts + ' for ' + nm(f.o) + '.'; return B + 'finished a line: ' + f.track + ' track × ' + Math.max(1, f.platforms) + ' stations = <b class="hi">' + f.pts + '</b>.'; }
     if (ev.type === 'repair') return B + 'repaired the track and took the line.';
     if (ev.takenTrack) return B + 'took over ' + poss(ev.takenFrom) + ' line.';
     k = E.DEFS[ev.t].kind;
@@ -900,11 +904,23 @@ div.tilebtn { cursor: default; }
   function waitLine() { return 'Waiting for ' + tag(S.turn) + '. Pick a tile to plan your next move.'; }
   function planRefresh() { if (!canPlan()) return; ui.preview = null; if (ui.sel !== null && ui.sel >= S.hands[viewP].length) ui.sel = null; computeMoves(); }
   function turnLine() { return ui.moves.length ? '<b style="color:' + COL[viewP] + '">' + (viewP === sole ? 'Your turn.' : NAME[viewP] + '\'s turn.') + '</b> Pick a tile.' : '<span class="hi">No legal move.</span> Pass' + (S.bag.length ? ' or trade in your hand.' : '.'); }
+  var sound = { on: true, ctx: null };
+  function unlockAudio() { if (sound.ctx) return; try { var AC = window.AudioContext || window.webkitAudioContext; if (AC) { sound.ctx = new AC(); var b = sound.ctx.createBuffer(1, 1, 22050), s = sound.ctx.createBufferSource(); s.buffer = b; s.connect(sound.ctx.destination); s.start(0); } } catch (e) { sound.ctx = null; } }
+  function chime() {
+    if (sound.on && sound.ctx) {
+      try {
+        var c = sound.ctx, t0 = c.currentTime; if (c.state === 'suspended') c.resume();
+        [[660, 0], [880, .14]].forEach(function (n) { var o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = n[0]; g.gain.setValueAtTime(0, t0 + n[1]); g.gain.linearRampToValueAtTime(.18, t0 + n[1] + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + n[1] + .35); o.connect(g); g.connect(c.destination); o.start(t0 + n[1]); o.stop(t0 + n[1] + .4); });
+      } catch (e) { /* no audio */ }
+    }
+    try { if (sound.on && navigator.vibrate) navigator.vibrate([90, 60, 90]); } catch (e) { /* not supported */ }
+  }
   function beginTurn() {
     ui.cover = false; ui.busy = false; ui.preview = null; armed.what = ''; if (ui.sel !== null && ui.sel >= (S.hands[viewP] || []).length) ui.sel = null; computeMoves();
     var news = sinceLast(viewP);
     setStatus((news ? news + ' ' : '') + (ui.sel !== null ? hintFor(S.hands[viewP][ui.sel]) : turnLine()));
     renderScores(); renderAll(); snapshot();
+    if (S.turn === viewP && (humans().length === 1 || net.mode !== 'local')) chime();
   }
   function humanTurn(p) {
     if (humans().length > 1 && viewP !== p) {
@@ -1017,7 +1033,7 @@ div.tilebtn { cursor: default; }
     '<li><b>Your turn:</b> lay one tile, then you draw back up to seven. You may pass instead, or trade in your whole hand.</li>' +
     '<li><b>Track must connect.</b> An opening can never face a blank side.</li>' +
     '<li><b>Any track you lay is your colour.</b> Lay it on someone else\'s unfinished line and the whole line becomes yours.</li>' +
-    '<li><b>A station is the end of a line.</b> Each dot in a station box is one station. Lines never run through a box. Only the owner of a line can add a station to it.</li>' +
+    '<li><b>A station is the end of a line.</b> Each dot in a station box is one station. Lines never run through a box. A station tile must go on one of your own lines; its other stations may touch anyone\'s line, and a line they finish scores for its owner.</li>' +
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
@@ -1042,13 +1058,13 @@ div.tilebtn { cursor: default; }
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
       '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock());
   }
-  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2>Tiles</h2>' + legend() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="tilesBtn">Tiles left</button></div>'); }
+  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2>Tiles</h2>' + legend() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="tilesBtn">All 90 tiles</button></div>'); }
   function showTiles() {
     var groups = [['Station only (the head tiles)', ['station_4', 'station_3a', 'station_3b', 'station_2h', 'station_2v']], ['Track with a station beside it (body and head tiles)', ['combo_straight', 'combo_corner', 'combo_hook']], ['Track (body tiles)', ['track_hook', 'track_corner', 'track_straight', 'track_wave', 'track_tside', 'track_tthru']], ['Steel track (armored body tiles)', ['bridge_hook', 'bridge_corner', 'bridge_straight', 'bridge_wave', 'bridge_tside']], ['Four-way junction', ['cross']], ['Broken track (injured tiles)', ['sab_hook', 'sab_corner', 'sab_straight', 'sab_wave', 'sab_tside']], ['Penn (Todd) and the starter', ['penn', 'hub']]];
-    var h = '<h1>All 90 tiles</h1><p class="sub">' + (started ? '"Left" counts the tiles nobody has played yet, not counting your own hand. They are in the bag or in other players\' hands.' : 'The same set as the snake game: same shapes, same counts.') + '</p>';
+    var h = '<h1>All 90 tiles</h1><p class="sub">' + 'The full set, the same shapes and counts as the snake game.' + '</p>';
     groups.forEach(function (g) {
       var n = 0; g[1].forEach(function (t) { n += E.DEFS[t].count || 1; });
-      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { var tot = E.DEFS[t].count || 1; if (t === 'hub' || !started) return '<div>' + tileSvg(t, 0, 0) + '<b>×' + tot + '</b></div>'; var used = (S.used && S.used[t]) || 0, mine = (S.hands[viewP] || []).filter(function (x) { return x === t; }).length, left = Math.max(0, tot - used - mine); return '<div' + (left ? '' : ' class="gone"') + '>' + tileSvg(t, 0, 0) + '<b>' + left + ' left</b><small>of ' + tot + (mine ? ', ' + mine + ' in your hand' : '') + '</small></div>'; }).join('') + '</div>';
+      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { var tot = E.DEFS[t].count || 1; if (true) return '<div>' + tileSvg(t, 0, 0) + '<b>×' + tot + '</b></div>'; var used = (S.used && S.used[t]) || 0, mine = (S.hands[viewP] || []).filter(function (x) { return x === t; }).length, left = Math.max(0, tot - used - mine); return '<div' + (left ? '' : ' class="gone"') + '>' + tileSvg(t, 0, 0) + '<b>' + left + ' left</b><small>of ' + tot + (mine ? ', ' + mine + ' in your hand' : '') + '</small></div>'; }).join('') + '</div>';
     });
     sheet(h + '<div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="rulesBack">Rules</button></div>');
   }
@@ -1106,8 +1122,9 @@ div.tilebtn { cursor: default; }
     $('pass').addEventListener('click', function () { skip('pass'); });
     $('swap').addEventListener('click', function () { skip('swap'); });
     $('rulesBtn').addEventListener('click', showRules);
-    $('tilesTop').addEventListener('click', showTiles);
     $('restart').addEventListener('click', showStart);
+    document.addEventListener('pointerdown', unlockAudio, true);
+    $('snd').addEventListener('change', function () { sound.on = $('snd').checked; if (sound.on) { unlockAudio(); chime(); } });
     $('anim').addEventListener('change', function () { animOn = $('anim').checked; if (S) renderMarks(); });
     $('zin').addEventListener('click', function () { var r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); });
     $('zout').addEventListener('click', function () { var r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); });
