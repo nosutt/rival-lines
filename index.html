@@ -152,6 +152,9 @@ div.tilebtn { cursor: default; }
   .chip .pts { font-size: 20px; }
 }
 
+.tilegrid small { font-size: 12px; color: #5a6c72; text-align: center; line-height: 1.2; }
+.tilegrid .gone svg { opacity: .3; }
+
 </style>
 </head>
 <body>
@@ -173,6 +176,7 @@ div.tilebtn { cursor: default; }
       <button type="button" class="btn" id="pass">Pass</button>
       <button type="button" class="btn" id="swap">Trade in hand</button>
       <button type="button" class="btn" id="rulesBtn">Rules</button>
+      <button type="button" class="btn" id="tilesTop">Tiles left</button>
       <button type="button" class="btn" id="restart">Restart</button>
       <label class="toggle" for="anim"><input type="checkbox" id="anim" checked> Animation</label>
     </div>
@@ -447,6 +451,7 @@ div.tilebtn { cursor: default; }
       ev.finished.push({ cells: L.cells.map(function (c) { return [c.x, c.y]; }), pts: pts, label: lb, track: L.body, platforms: L.platforms });
     });
     S.an = analyze(S.board);
+    S.used = S.used || {}; S.used[t] = (S.used[t] || 0) + 1;
     S.hands[P].splice(m.i, 1); draw(S, P);
     S.idle = 0; S.moveNo++; S.turn = (P + 1) % S.n; S.last = { player: P, x: m.x, y: m.y, type: m.type };
     checkOver(S);
@@ -798,8 +803,9 @@ div.tilebtn { cursor: default; }
     renderMarks();
   }
   function myTurn() { return !!S && !S.over && !ui.busy && !ui.cover && S.turn === viewP && !isBot(viewP); }
+  function canPlan() { return !!S && started && !S.over && !ui.cover && !isBot(viewP) && cfg.seats[viewP] !== 'remote' && !!S.hands[viewP]; }
   function renderMarks() {
-    var s = '', A = S.an, mine = myTurn();
+    var s = '', A = S.an, mine = canPlan();
     A.lines.forEach(function (L) {
       if (L.locked) return;
       L.loose.forEach(function (e) {
@@ -828,7 +834,7 @@ div.tilebtn { cursor: default; }
 
   // ------------------------------------------------------------ hand, scores, status
   function renderHand() {
-    var h = '', mine = myTurn(), hidden = ui.cover || !humans().length, hand = S.hands[viewP] || [], i;
+    var h = '', mine = canPlan(), hidden = ui.cover || !humans().length, hand = S.hands[viewP] || [], i;
     for (i = 0; i < hand.length; i++) {
       if (hidden) { h += '<div class="tilebtn">' + BACK + '</div>'; continue; }
       var t = hand[i], live = !!(ui.byType[t] && ui.byType[t].size), sel = ui.sel === i;
@@ -837,9 +843,9 @@ div.tilebtn { cursor: default; }
     $('hand').innerHTML = h;
     var t2 = mine && ui.sel !== null ? hand[ui.sel] : null;
     $('rotate').disabled = !t2 || E.symmetric(t2) || E.DEFS[t2].kind === 'sabotage';
-    $('place').disabled = !mine || !ui.preview;
-    $('pass').disabled = !mine;
-    $('swap').disabled = !mine || !S.bag.length;
+    var go = myTurn(); $('place').disabled = !go || !ui.preview;
+    $('pass').disabled = !go;
+    $('swap').disabled = !go || !S.bag.length;
   }
   function renderScores() {
     var n = S.bag.length, h = '';
@@ -891,11 +897,13 @@ div.tilebtn { cursor: default; }
       if (m.type === 'place') { sp.place[m.rot] = m; if (E.symmetric(m.t)) sp.place[1] = m; } else sp.target = m;
     });
   }
+  function waitLine() { return 'Waiting for ' + tag(S.turn) + '. Pick a tile to plan your next move.'; }
+  function planRefresh() { if (!canPlan()) return; ui.preview = null; if (ui.sel !== null && ui.sel >= S.hands[viewP].length) ui.sel = null; computeMoves(); }
   function turnLine() { return ui.moves.length ? '<b style="color:' + COL[viewP] + '">' + (viewP === sole ? 'Your turn.' : NAME[viewP] + '\'s turn.') + '</b> Pick a tile.' : '<span class="hi">No legal move.</span> Pass' + (S.bag.length ? ' or trade in your hand.' : '.'); }
   function beginTurn() {
-    ui.cover = false; ui.busy = false; ui.sel = null; ui.preview = null; armed.what = ''; computeMoves();
+    ui.cover = false; ui.busy = false; ui.preview = null; armed.what = ''; if (ui.sel !== null && ui.sel >= (S.hands[viewP] || []).length) ui.sel = null; computeMoves();
     var news = sinceLast(viewP);
-    setStatus((news ? news + ' ' : '') + turnLine());
+    setStatus((news ? news + ' ' : '') + (ui.sel !== null ? hintFor(S.hands[viewP][ui.sel]) : turnLine()));
     renderScores(); renderAll(); snapshot();
   }
   function humanTurn(p) {
@@ -910,7 +918,7 @@ div.tilebtn { cursor: default; }
   }
   function next() { snapshot(); if (S.over) return endGame(); var p = S.turn; if (cfg.seats[p] === 'remote') return waitRemote(p); if (isBot(p)) botTurn(p); else humanTurn(p); }
   function botTurn(p) {
-    ui.busy = true; setStatus(tag(p) + ' is thinking…'); renderScores(); renderAll();
+    ui.busy = true; planRefresh(); setStatus(tag(p) + ' is thinking…' + (canPlan() ? ' Pick a tile to plan your next move.' : '')); renderScores(); renderAll();
     pause(animOn ? 650 : 120).then(function () {
       var m = Bot.choose(S, p, cfg.seats[p]), ev = m ? E.applyMove(S, p, { type: m.type, i: m.i, t: m.t, rot: m.rot, x: m.x, y: m.y }) : (S.bag.length ? E.tradeHand(S, p) : E.pass(S, p));
       note(ev); net.cast(ev); return playEvent(ev).then(next);
@@ -924,26 +932,27 @@ div.tilebtn { cursor: default; }
     return 'Tap a highlighted space' + (rep ? ', or a broken track to repair it' : '') + '.' + (E.symmetric(t) ? '' : ' Faint spaces need a rotate.');
   }
   function selectTile(i) {
-    if (!myTurn()) return;
+    if (!canPlan()) return;
     var hand = S.hands[viewP];
-    if (ui.sel === i) { ui.sel = null; ui.preview = null; setStatus(turnLine()); }
-    else { if (ui.sel === null || hand[ui.sel] !== hand[i]) ui.rot = 0; ui.sel = i; ui.preview = null; setStatus(hintFor(hand[i])); }
+    var plan = myTurn() ? '' : '<b class="hi">Planning.</b> ';
+    if (ui.sel === i) { ui.sel = null; ui.preview = null; setStatus(myTurn() ? turnLine() : waitLine()); }
+    else { if (ui.sel === null || hand[ui.sel] !== hand[i]) ui.rot = 0; ui.sel = i; ui.preview = null; setStatus(plan + hintFor(hand[i])); }
     renderAll();
   }
   function tapCell(x, y) {
-    if (!myTurn() || ui.sel === null) return;
+    if (!canPlan() || ui.sel === null) return;
     var t = S.hands[viewP][ui.sel], mp = ui.byType[t], sp = mp ? mp.get(E.key(x, y)) : null;
     if (!sp) {
       var why = S.board.has(E.key(x, y)) ? (E.DEFS[t].kind === 'sabotage' ? 'Broken track only goes on plain track of the same shape, on a line that is not finished.' : '') : E.whyNot(S, viewP, t, ui.rot, x, y);
       ui.preview = null; setStatus(why ? '<span class="hi">Can\'t go there.</span> ' + why : hintFor(t)); renderAll(); return;
     }
-    if (ui.preview && ui.preview.x === x && ui.preview.y === y) { confirmMove(); return; }
+    if (ui.preview && ui.preview.x === x && ui.preview.y === y) { if (myTurn()) confirmMove(); return; }
     var m = sp.target;
     if (!m) { if (!sp.place[ui.rot]) ui.rot ^= 1; m = sp.place[ui.rot]; }
-    ui.preview = m; setStatus(describe(m) + ' <span class="hi">Tap again or press Place.</span>'); renderAll();
+    ui.preview = m; setStatus(describe(m) + (myTurn() ? ' <span class="hi">Tap again or press Place.</span>' : ' <span class="hi">You can place it on your turn.</span>')); renderAll();
   }
   function rotate() {
-    if (!myTurn() || ui.sel === null) return;
+    if (!canPlan() || ui.sel === null) return;
     var t = S.hands[viewP][ui.sel]; if (E.symmetric(t) || E.DEFS[t].kind === 'sabotage') return;
     ui.rot ^= 1;
     if (ui.preview && ui.preview.type === 'place') {
@@ -1033,13 +1042,13 @@ div.tilebtn { cursor: default; }
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
       '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock());
   }
-  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2>Tiles</h2>' + legend() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="tilesBtn">All 90 tiles</button></div>'); }
+  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2>Tiles</h2>' + legend() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="tilesBtn">Tiles left</button></div>'); }
   function showTiles() {
     var groups = [['Station only (the head tiles)', ['station_4', 'station_3a', 'station_3b', 'station_2h', 'station_2v']], ['Track with a station beside it (body and head tiles)', ['combo_straight', 'combo_corner', 'combo_hook']], ['Track (body tiles)', ['track_hook', 'track_corner', 'track_straight', 'track_wave', 'track_tside', 'track_tthru']], ['Steel track (armored body tiles)', ['bridge_hook', 'bridge_corner', 'bridge_straight', 'bridge_wave', 'bridge_tside']], ['Four-way junction', ['cross']], ['Broken track (injured tiles)', ['sab_hook', 'sab_corner', 'sab_straight', 'sab_wave', 'sab_tside']], ['Penn (Todd) and the starter', ['penn', 'hub']]];
-    var h = '<h1>All 90 tiles</h1><p class="sub">The same set as the snake game: same shapes, same counts.</p>';
+    var h = '<h1>All 90 tiles</h1><p class="sub">' + (started ? '"Left" counts the tiles nobody has played yet, not counting your own hand. They are in the bag or in other players\' hands.' : 'The same set as the snake game: same shapes, same counts.') + '</p>';
     groups.forEach(function (g) {
       var n = 0; g[1].forEach(function (t) { n += E.DEFS[t].count || 1; });
-      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { return '<div>' + tileSvg(t, 0, 0) + '<b>×' + (E.DEFS[t].count || 1) + '</b></div>'; }).join('') + '</div>';
+      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { var tot = E.DEFS[t].count || 1; if (t === 'hub' || !started) return '<div>' + tileSvg(t, 0, 0) + '<b>×' + tot + '</b></div>'; var used = (S.used && S.used[t]) || 0, mine = (S.hands[viewP] || []).filter(function (x) { return x === t; }).length, left = Math.max(0, tot - used - mine); return '<div' + (left ? '' : ' class="gone"') + '>' + tileSvg(t, 0, 0) + '<b>' + left + ' left</b><small>of ' + tot + (mine ? ', ' + mine + ' in your hand' : '') + '</small></div>'; }).join('') + '</div>';
     });
     sheet(h + '<div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="rulesBack">Rules</button></div>');
   }
@@ -1097,6 +1106,7 @@ div.tilebtn { cursor: default; }
     $('pass').addEventListener('click', function () { skip('pass'); });
     $('swap').addEventListener('click', function () { skip('swap'); });
     $('rulesBtn').addEventListener('click', showRules);
+    $('tilesTop').addEventListener('click', showTiles);
     $('restart').addEventListener('click', showStart);
     $('anim').addEventListener('change', function () { animOn = $('anim').checked; if (S) renderMarks(); });
     $('zin').addEventListener('click', function () { var r = wrap.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); });
@@ -1233,8 +1243,8 @@ div.tilebtn { cursor: default; }
     net.waiting = false; note(ev); net.cast(ev); ui.busy = true; playEvent(ev).then(next);
   }
   function waitRemote(p) {
-    ui.busy = true; ui.sel = null; ui.preview = null;
-    var news = sinceLast(viewP); setStatus((news ? news + ' ' : '') + 'Waiting for ' + tag(p) + '…'); renderScores(); renderAll();
+    ui.busy = true; planRefresh();
+    var news = sinceLast(viewP); setStatus((news ? news + ' ' : '') + waitLine()); renderScores(); renderAll();
     if (net.mode === 'host') { net.waiting = true; if (net.pending) takeRemote(); }
   }
   function hostLost(conn) {
