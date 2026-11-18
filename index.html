@@ -497,7 +497,8 @@ div.tilebtn { cursor: default; }
 (function (root) {
   'use strict';
   var E = root.Engine;
-  function unseen(S, P) { var c = {}, U = 0; var pool = S.bag.slice(); S.hands.forEach(function (h, i) { if (i !== P) pool = pool.concat(h); }); pool.forEach(function (t) { c[t] = (c[t] || 0) + 1; U++; }); return { c: c, U: U }; }
+  // the hard bot judges what you might hold from the full tile set only; it does not track what has been played
+  function unseen(S, P) { var c = {}, U = 0; Object.keys(E.DEFS).forEach(function (t) { var n = E.DEFS[t].count; if (n) { c[t] = n; U += n; } }); return { c: c, U: U }; }
   function pts(res, P) { var s = 0; res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -1) * E.lineValue(L); }); return s; }
   function holds(hand, pred) { for (var i = 0; i < hand.length; i++) if (pred(E.DEFS[hand[i]])) return true; return false; }
 
