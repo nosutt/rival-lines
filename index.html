@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rival Lines Online</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<script>
+window.RL_BUILD = "20261118-2026";
+(function () { // if the server has a newer build than this page, load it
+  try {
+    fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
+      var m = t.match(/RL_BUILD = "([^"]+)"/);
+      if (m && m[1] !== window.RL_BUILD) { var u = location.pathname + '?v=' + m[1]; if (location.search.indexOf(m[1]) < 0) location.replace(u); }
+    }).catch(function () {});
+  } catch (e) {}
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&amp;family=Fredoka:wght@500;600;700&amp;display=swap" rel="stylesheet">
 <style>
@@ -160,7 +172,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div></div>
+    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261118-2026</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
