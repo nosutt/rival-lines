@@ -1163,9 +1163,32 @@ div.tilebtn { cursor: default; }
       '<div class="sheetbar"><button type="button" class="btn primary" id="goBtn">Start the game</button><button type="button" class="btn" id="leaveBtn">Close the room</button></div>');
   }
   function castLobby() { var names = lobbyNames(); net.conns.forEach(function (c) { if (c.conn && c.conn.open) c.conn.send({ k: 'lobby', names: names, code: net.code }); }); if (net.lobby) showLobby(); }
-  function hostRoom(code, name) {
+  // relay servers (Metered, the 'railrivals' app): fetch fresh ones, fall back to the fixed login
+  var ICE_FALLBACK = [
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: 'turn:global.relay.metered.ca:80', username: '16bcbd37b49845d0f3de4153', credential: 'YQZ0RsIpP8EJt7Jm' },
+    { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '16bcbd37b49845d0f3de4153', credential: 'YQZ0RsIpP8EJt7Jm' },
+    { urls: 'turn:global.relay.metered.ca:443', username: '16bcbd37b49845d0f3de4153', credential: 'YQZ0RsIpP8EJt7Jm' },
+    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '16bcbd37b49845d0f3de4153', credential: 'YQZ0RsIpP8EJt7Jm' },
+    { urls: 'stun:stun.l.google.com:19302' }
+  ];
+  function getIce() {
+    return new Promise(function (res) {
+      var done = false, finish = function (v) { if (!done) { done = true; res(v); } };
+      setTimeout(function () { finish(ICE_FALLBACK); }, 4000);
+      try {
+        fetch('https://railrivals.metered.live/api/v1/turn/credentials?apiKey=1cc46452337050457ae88a0261ca9caf5b7d')
+          .then(function (r) { return r.json(); })
+          .then(function (list) { finish(Array.isArray(list) && list.length ? list.concat([{ urls: 'stun:stun.l.google.com:19302' }]) : ICE_FALLBACK); })
+          .catch(function () { finish(ICE_FALLBACK); });
+      } catch (e) { finish(ICE_FALLBACK); }
+    });
+  }
+  function hostRoom(code, name) { netMsg('Opening room ' + code + '…'); getIce().then(function (ice) { hostRoomWith(code, name, ice); }); }
+  function joinRoom(code, name) { netMsg('Connecting to room ' + code + '…'); getIce().then(function (ice) { joinRoomWith(code, name, ice); }); }
+  function hostRoomWith(code, name, ice) {
     net.reset(); net.mode = 'host'; net.code = code; net.myName = name; net.seat = 0; net.lobby = true; netMsg('Opening room ' + code + '…');
-    var peer = net.peer = new window.Peer(roomId(code));
+    var peer = net.peer = new window.Peer(roomId(code), { config: { iceServers: ice } });
     peer.on('open', function () { if (net.peer === peer) showLobby(); });
     peer.on('error', function (err) {
       if (net.peer !== peer) return; var t = err && err.type;
@@ -1220,9 +1243,9 @@ div.tilebtn { cursor: default; }
     setPalette(randomPalette()); S = E.newGame({ players: total }); started = true; lastBounds = ''; feed = []; sole = 0; viewP = 0; ui.cover = false;
     hideSheet(); fit(true, true); renderScores(); net.cast(null); next();
   }
-  function joinRoom(code, name) {
+  function joinRoomWith(code, name, ice) {
     net.reset(); net.mode = 'guest'; net.code = code; net.myName = name; netMsg('Connecting to room ' + code + '…');
-    var peer = net.peer = new window.Peer();
+    var peer = net.peer = new window.Peer({ config: { iceServers: ice } });
     peer.on('open', function () {
       if (net.peer !== peer) return;
       var conn = net.host = peer.connect(roomId(code), { reliable: true, serialization: 'json' });
