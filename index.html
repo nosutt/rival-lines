@@ -6,7 +6,7 @@
 <title>Rival Lines Online</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
-window.RL_BUILD = "20261118-2026";
+window.RL_BUILD = "20261118-2031";
 (function () { // if the server has a newer build than this page, load it
   try {
     fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
@@ -172,7 +172,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261118-2026</div></div>
+    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261118-2031</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -1069,7 +1069,7 @@ div.tilebtn { cursor: default; }
     [2, 3, 4].forEach(function (n) { np += '<label class="opt" for="np' + n + '"><input type="radio" name="np" id="np' + n + '" value="' + n + '"' + (cfg.n === n ? ' checked' : '') + '><span>' + n + ' players</span></label>'; });
     sheet('<h1>Rival Lines</h1><p class="sub">Lay track, steal lines, and finish them with stations.</p>' +
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
-      '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES);
+      '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES + '<h2 style="margin-top:20px">All 90 tiles</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid());
   }
   function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2 style="margin-top:20px">All 90 tiles</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button></div>'); }
   var TILE_LABEL = {
