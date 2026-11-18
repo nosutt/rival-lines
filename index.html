@@ -1059,16 +1059,25 @@ div.tilebtn { cursor: default; }
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
       '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock());
   }
-  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2>Tiles</h2>' + legend() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="tilesBtn">All 90 tiles</button></div>'); }
-  function showTiles() {
-    var groups = [['Station only (the head tiles)', ['station_4', 'station_3a', 'station_3b', 'station_2h', 'station_2v']], ['Track with a station beside it (body and head tiles)', ['combo_straight', 'combo_corner', 'combo_hook']], ['Track (body tiles)', ['track_hook', 'track_corner', 'track_straight', 'track_wave', 'track_tside', 'track_tthru']], ['Steel track (armored body tiles)', ['bridge_hook', 'bridge_corner', 'bridge_straight', 'bridge_wave', 'bridge_tside']], ['Four-way junction', ['cross']], ['Broken track (injured tiles)', ['sab_hook', 'sab_corner', 'sab_straight', 'sab_wave', 'sab_tside']], ['Penn (Todd) and the starter', ['penn', 'hub']]];
-    var h = '<h1>All 90 tiles</h1><p class="sub">' + 'The full set, the same shapes and counts as the snake game.' + '</p>';
+  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2 style="margin-top:20px">All 90 tiles</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button></div>'); }
+  var TILE_LABEL = {
+    track_hook: 'Left turn', track_corner: 'Right turn', track_straight: 'Straight, up–down', track_wave: 'Straight, across', track_tside: 'T-junction', track_tthru: 'T-junction, through',
+    bridge_hook: 'Steel left turn', bridge_corner: 'Steel right turn', bridge_straight: 'Steel straight, up–down', bridge_wave: 'Steel straight, across', bridge_tside: 'Steel T-junction',
+    cross: 'Four-way', combo_straight: 'Straight with 2 stations', combo_corner: 'Right turn with a station', combo_hook: 'Left turn with a station',
+    station_4: '4 stations', station_3a: '3 stations', station_3b: '3 stations', station_2h: '2 stations, across', station_2v: '2 stations, up–down',
+    sab_hook: 'Broken left turn', sab_corner: 'Broken right turn', sab_straight: 'Broken straight, up–down', sab_wave: 'Broken straight, across', sab_tside: 'Broken T-junction',
+    penn: 'Penn (wild)', hub: 'Starting hub'
+  };
+  function tileGrid() {
+    var groups = [['Track', ['track_hook', 'track_corner', 'track_straight', 'track_wave', 'track_tside', 'track_tthru', 'cross']], ['Steel track (cannot be broken)', ['bridge_hook', 'bridge_corner', 'bridge_straight', 'bridge_wave', 'bridge_tside']], ['Stations', ['station_4', 'station_3a', 'station_3b', 'station_2h', 'station_2v']], ['Track with a station beside it', ['combo_straight', 'combo_corner', 'combo_hook']], ['Broken track (sabotage)', ['sab_hook', 'sab_corner', 'sab_straight', 'sab_wave', 'sab_tside']], ['Special', ['penn', 'hub']]];
+    var h = '';
     groups.forEach(function (g) {
       var n = 0; g[1].forEach(function (t) { n += E.DEFS[t].count || 1; });
-      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { var tot = E.DEFS[t].count || 1; if (true) return '<div>' + tileSvg(t, 0, 0) + '<b>×' + tot + '</b></div>'; var used = (S.used && S.used[t]) || 0, mine = (S.hands[viewP] || []).filter(function (x) { return x === t; }).length, left = Math.max(0, tot - used - mine); return '<div' + (left ? '' : ' class="gone"') + '>' + tileSvg(t, 0, 0) + '<b>' + left + ' left</b><small>of ' + tot + (mine ? ', ' + mine + ' in your hand' : '') + '</small></div>'; }).join('') + '</div>';
+      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { return '<div>' + tileSvg(t, 0, 0) + '<b>×' + (E.DEFS[t].count || 1) + '</b><small>' + TILE_LABEL[t] + '</small></div>'; }).join('') + '</div>';
     });
-    sheet(h + '<div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button><button type="button" class="btn" id="rulesBack">Rules</button></div>');
+    return h;
   }
+  function showTiles() { sheet('<h1>All 90 tiles</h1><p class="sub">Every tile in the game and how many there are.</p>' + tileGrid() + '<div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button></div>'); }
   function endGame() {
     ui.busy = true; ui.cover = false; renderScores(); renderAll();
     var best = Math.max.apply(null, S.scores), win = [], p, left = [], head = '', tot = '', un = '';
