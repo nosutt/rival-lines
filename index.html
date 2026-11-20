@@ -6,7 +6,7 @@
 <title>Rival Lines Online</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
-window.RL_BUILD = "20261118-2031";
+window.RL_BUILD = "20261120-0043";
 (function () { // if the server has a newer build than this page, load it
   try {
     fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
@@ -172,7 +172,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261118-2031</div></div>
+    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261120-0043</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -467,23 +467,33 @@ div.tilebtn { cursor: default; }
     S.an = analyze(S.board);
     S.used = S.used || {}; S.used[t] = (S.used[t] || 0) + 1;
     S.hands[P].splice(m.i, 1); draw(S, P);
-    S.idle = 0; S.moveNo++; S.turn = (P + 1) % S.n; S.last = { player: P, x: m.x, y: m.y, type: m.type };
+    S.idle = 0; S.moveNo++; advance(S, P); S.last = { player: P, x: m.x, y: m.y, type: m.type };
     checkOver(S);
     return ev;
   }
   // trade in the whole hand (uses the turn), or simply pass
-  function pass(S, P) { S.idle++; S.turn = (P + 1) % S.n; checkOver(S); return { player: P, type: 'pass' }; }
+  // next player; once the bag is empty, players with no tiles left are skipped
+  function advance(S, P) {
+    var t = (P + 1) % S.n;
+    if (!S.bag.length) for (var k = 0; k < S.n && !S.hands[t].length; k++) t = (t + 1) % S.n;
+    S.turn = t;
+  }
+  function pass(S, P) { S.idle++; advance(S, P); checkOver(S); return { player: P, type: 'pass' }; }
   function tradeHand(S, P) {
     if (!S.bag.length) return pass(S, P);
     var rnd = rng(S.rs); S.rs = Math.floor(rnd() * 4294967296);
     S.bag = S.bag.concat(S.hands[P]); S.hands[P] = []; shuffle(S.bag, rnd); draw(S, P);
-    S.idle++; S.turn = (P + 1) % S.n; checkOver(S);
+    S.idle++; advance(S, P); checkOver(S);
     return { player: P, type: 'swap' };
   }
   function checkOver(S) {
-    var left = 0; S.hands.forEach(function (h) { left += h.length; });
-    if (S.bag.length === 0 && (left === 0 || S.idle >= S.n)) S.over = true;
-    else if (S.idle >= 2 * S.n) S.over = true;
+    var left = 0, holders = 0; S.hands.forEach(function (h) { left += h.length; if (h.length) holders++; });
+    if (S.bag.length === 0) {
+      // the bag is empty: play on until nobody holding tiles can lay one
+      if (left === 0) S.over = true;
+      else if (S.idle >= 2 * Math.max(1, holders)) S.over = true; // everyone still holding tiles has passed twice in a row
+      else { var can = false; for (var p = 0; p < S.n && !can; p++) if (S.hands[p].length && legalMoves(S, p).length) can = true; if (!can) S.over = true; }
+    } else if (S.idle >= 2 * S.n) S.over = true;
     return S.over;
   }
 
@@ -1002,7 +1012,7 @@ div.tilebtn { cursor: default; }
     if (!myTurn() || (what === 'swap' && !S.bag.length)) return;
     if (ui.moves.length && !(armed.what === what && Date.now() - armed.at < 4000)) {
       armed = { what: what, at: Date.now() };
-      setStatus((what === 'swap' ? 'Trade in all your tiles and skip this turn?' : 'Pass this turn?') + ' <span class="hi">Press again to confirm.</span>'); return;
+      setStatus((what === 'swap' ? 'Trade in all your tiles and skip this turn?' : (S.bag.length ? 'Pass this turn?' : 'The bag is empty. Pass anyway? The game ends if everyone still holding tiles passes twice in a row.')) + ' <span class="hi">Press again to confirm.</span>'); return;
     }
     armed.what = ''; ui.busy = true; ui.sel = null; ui.preview = null;
     if (net.mode === 'guest') { setStatus('Sending…'); renderAll(); net.send({ k: 'skip', what: what }); return; }
