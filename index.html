@@ -4,6 +4,29 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rival Lines Online</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+<script>
+window.RL_BUILD = "20261120-1711";
+(function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
+  function check(onLoad) {
+    try {
+      fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
+        var m = t.match(/RL_BUILD = "([^"]+)"/); if (!m || m[1] === window.RL_BUILD) return;
+        var u = location.pathname + '?v=' + m[1];
+        var inGame = !!(window.__rl && window.__rl.state && window.__rl.state() && !window.__rl.state().over && document.getElementById('overlay').className !== 'on');
+        if (onLoad && !inGame) { if (location.search.indexOf(m[1]) < 0) location.replace(u); return; }
+        if (document.getElementById('upd')) return;
+        var d = document.createElement('a'); d.id = 'upd'; d.href = u; d.textContent = 'A new version is ready. Tap to update (this restarts the game).';
+        d.style.cssText = 'position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:50;background:#ffd23f;color:#1c1600;font:600 14px system-ui,sans-serif;padding:9px 14px;border-radius:12px;text-decoration:none;box-shadow:0 4px 0 rgba(0,0,0,.3);max-width:92vw;text-align:center';
+        document.body.appendChild(d);
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  check(true);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(false); });
+  setInterval(function () { check(false); }, 120000);
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&amp;family=Fredoka:wght@500;600;700&amp;display=swap" rel="stylesheet">
 <style>
@@ -160,7 +183,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div></div>
+    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261120-1711</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
