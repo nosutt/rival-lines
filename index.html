@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rival Lines Online</title>
+<title>Derail</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
-window.RL_BUILD = "20261120-1711";
+window.RL_BUILD = "20261123-2339";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -183,7 +183,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Rival Lines</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261120-1711</div></div>
+    <div id="mid"><div id="title">Derail</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261123-2339</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -616,7 +616,7 @@ div.tilebtn { cursor: default; }
 
 </script>
 <script>
-/* Rival Lines — page: tile art, board, hands, turns for 2 to 4 players. All motion is driven from JS tickers. */
+/* Derail — page: tile art, board, hands, turns for 2 to 4 players. All motion is driven from JS tickers. */
 (function () {
   'use strict';
   var E = window.Engine, Bot = window.Bot;
@@ -1088,7 +1088,7 @@ div.tilebtn { cursor: default; }
   function showStart() {
     var np = '';
     [2, 3, 4].forEach(function (n) { np += '<label class="opt" for="np' + n + '"><input type="radio" name="np" id="np' + n + '" value="' + n + '"' + (cfg.n === n ? ' checked' : '') + '><span>' + n + ' players</span></label>'; });
-    sheet('<h1>Rival Lines</h1><p class="sub">Lay track, steal lines, and finish them with stations.</p>' +
+    sheet('<h1>Derail</h1><p class="sub">Lay track, steal lines, and finish them with stations.</p>' +
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
       '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES + '<h2 style="margin-top:20px">All 90 tiles</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid());
   }
