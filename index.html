@@ -6,7 +6,7 @@
 <title>Derail</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
-window.RL_BUILD = "20261123-2339";
+window.RL_BUILD = "20261123-2343";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -183,7 +183,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261123-2339</div></div>
+    <div id="mid"><div id="title">Derail</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261123-2343</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -213,6 +213,9 @@ div.tilebtn { cursor: default; }
   var DX = [-1, 0, 1, 0], DY = [0, -1, 0, 1]; // edge order: L, T, R, B
   function opp(d) { return (d + 2) & 3; }
   function key(x, y) { return x + ',' + y; }
+  var BOUND = 0; // 0 = open table; n = board runs from -n to n each way
+  function outside(x, y) { return BOUND > 0 && (Math.abs(x) > BOUND || Math.abs(y) > BOUND); }
+  function setBound(n) { BOUND = n || 0; }
 
   var DEFS = {};
   function D(id, kind, shape, edges, count) { DEFS[id] = { id: id, kind: kind, shape: shape, edges: edges, count: count }; }
@@ -271,7 +274,7 @@ div.tilebtn { cursor: default; }
           var a = edgeOf(c.t, c.rot, d);
           if (a !== 't' && a !== 'x') continue;
           var nx = c.x + DX[d], ny = c.y + DY[d], nk = key(nx, ny), n = board.get(nk);
-          if (!n) { if (a === 't') line.loose.push({ x: c.x, y: c.y, d: d }); continue; }
+          if (!n) { if (a === 't') { if (outside(nx, ny)) { line.platforms++; line.walls = (line.walls || 0) + 1; } else line.loose.push({ x: c.x, y: c.y, d: d }); } continue; }
           var b = edgeOf(n.t, n.rot, opp(d));
           if (b === 't' || b === 'x') { if (!lineOf.has(nk)) { lineOf.set(nk, line.id); stack.push(n); } }
           else if (b === 'p') { line.platforms++; line.caps.push({ x: nx, y: ny, d: opp(d) }); }
@@ -288,7 +291,7 @@ div.tilebtn { cursor: default; }
   // ---------- simulate a placement; null if illegal ----------
   function simPlace(S, P, t, rot, x, y) {
     var board = S.board, k = key(x, y);
-    if (board.has(k)) return null;
+    if (board.has(k) || outside(x, y)) return null;
     var def = DEFS[t]; if (!def.edges) return null;
     var A = S.an, hasNb = false, freePlat = false, frozenCap = false, merge = [], caps = [], d, n, a, b, L;
     for (d = 0; d < 4; d++) {
@@ -385,6 +388,7 @@ div.tilebtn { cursor: default; }
   // plain-words reason a tile cannot go at (x, y); '' if it can
   function whyNot(S, P, t, rot, x, y) {
     if (S.board.has(key(x, y))) return 'There is already a tile there.';
+    if (outside(x, y)) return 'That is outside the border.';
     if (!DEFS[t].edges) return 'Broken track is laid on top of a matching track piece.';
     var A = S.an, hasNb = false, frozenTouch = false, d, n, a, b, L;
     for (d = 0; d < 4; d++) {
@@ -408,7 +412,7 @@ div.tilebtn { cursor: default; }
 
   function frontier(board) {
     var out = new Map();
-    board.forEach(function (e) { for (var d = 0; d < 4; d++) { var x = e.x + DX[d], y = e.y + DY[d], k = key(x, y); if (!board.has(k) && !out.has(k)) out.set(k, [x, y]); } });
+    board.forEach(function (e) { for (var d = 0; d < 4; d++) { var x = e.x + DX[d], y = e.y + DY[d], k = key(x, y); if (!board.has(k) && !out.has(k) && !outside(x, y)) out.set(k, [x, y]); } });
     return Array.from(out.values());
   }
 
@@ -444,11 +448,12 @@ div.tilebtn { cursor: default; }
   function newGame(opts) {
     opts = opts || {};
     var seed = opts.seed === undefined ? Math.floor(Math.random() * 4294967296) : opts.seed, rnd = rng(seed), bag = [];
-    Object.keys(DEFS).forEach(function (id) { for (var i = 0; i < DEFS[id].count; i++) bag.push(id); });
+    Object.keys(DEFS).forEach(function (id) { var c = DEFS[id].count; if (opts.half) c = Math.ceil(c / 2); for (var i = 0; i < c; i++) bag.push(id); });
     shuffle(bag, rnd);
     var np = Math.max(2, Math.min(4, opts.players || 2)), hands = [], scores = [], pi;
     for (pi = 0; pi < np; pi++) { hands.push([]); scores.push(0); }
-    var S = { v: 3, n: np, seed: seed, board: new Map(), bag: bag, hands: hands, scores: scores, lines: [], turn: 0, idle: 0, moveNo: 0, over: false, last: null, rs: Math.floor(rnd() * 4294967296) };
+    setBound(opts.border || 0);
+    var S = { v: 3, n: np, bound: opts.border || 0, half: !!opts.half, seed: seed, board: new Map(), bag: bag, hands: hands, scores: scores, lines: [], turn: 0, idle: 0, moveNo: 0, over: false, last: null, rs: Math.floor(rnd() * 4294967296) };
     S.board.set(key(0, 0), { t: 'hub', rot: 0, x: 0, y: 0, o: -1, br: 0, im: 0, lk: 0, lb: null });
     S.an = analyze(S.board);
     for (pi = 0; pi < np; pi++) draw(S, pi);
@@ -518,10 +523,10 @@ div.tilebtn { cursor: default; }
   function deserialize(o) {
     var S = JSON.parse(JSON.stringify(o)); var m = new Map();
     S.board.forEach(function (e) { m.set(key(e.x, e.y), e); });
-    S.board = m; S.an = analyze(m); return S;
+    setBound(S.bound || 0); S.board = m; S.an = analyze(m); return S;
   }
 
-  root.Engine = { DX: DX, DY: DY, opp: opp, key: key, DEFS: DEFS, SHAPE_EDGES: SHAPE_EDGES, HAND: HAND, edgeOf: edgeOf, hasTrack: hasTrack, symmetric: symmetric, analyze: analyze, lineAt: lineAt, lineValue: lineValue, simPlace: simPlace, simSabotage: simSabotage, simRepair: simRepair, canBreak: canBreak, whyNot: whyNot, frontier: frontier, legalMoves: legalMoves, newGame: newGame, applyMove: applyMove, tradeHand: tradeHand, pass: pass, totals: totals, serialize: serialize, deserialize: deserialize, rng: rng };
+  root.Engine = { DX: DX, DY: DY, opp: opp, key: key, DEFS: DEFS, SHAPE_EDGES: SHAPE_EDGES, HAND: HAND, edgeOf: edgeOf, hasTrack: hasTrack, symmetric: symmetric, analyze: analyze, lineAt: lineAt, lineValue: lineValue, simPlace: simPlace, simSabotage: simSabotage, simRepair: simRepair, canBreak: canBreak, whyNot: whyNot, outside: outside, setBound: setBound, bound: function () { return BOUND; }, frontier: frontier, legalMoves: legalMoves, newGame: newGame, applyMove: applyMove, tradeHand: tradeHand, pass: pass, totals: totals, serialize: serialize, deserialize: deserialize, rng: rng };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -531,7 +536,7 @@ div.tilebtn { cursor: default; }
   'use strict';
   var E = root.Engine;
   // the hard bot judges what you might hold from the full tile set only; it does not track what has been played
-  function unseen(S, P) { var c = {}, U = 0; Object.keys(E.DEFS).forEach(function (t) { var n = E.DEFS[t].count; if (n) { c[t] = n; U += n; } }); return { c: c, U: U }; }
+  function unseen(S, P) { var c = {}, U = 0; Object.keys(E.DEFS).forEach(function (t) { var n = E.DEFS[t].count; if (n && S.half) n = Math.ceil(n / 2); if (n) { c[t] = n; U += n; } }); return { c: c, U: U }; }
   function pts(res, P) { var s = 0; res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -1) * E.lineValue(L); }); return s; }
   function holds(hand, pred) { for (var i = 0; i < hand.length; i++) if (pred(E.DEFS[hand[i]])) return true; return false; }
 
@@ -620,6 +625,8 @@ div.tilebtn { cursor: default; }
 (function () {
   'use strict';
   var E = window.Engine, Bot = window.Bot;
+  var VARIANT = window.RL_VARIANT || '';
+  function gameOpts(n) { return VARIANT === 'border' ? { players: n, border: 3, half: true } : { players: n }; }
   var W = 100, H = 62, CX = 50, CY = 31, EP = [[0, 31], [50, 0], [100, 31], [50, 62]];
   var BASE = { col: ['#7A82AB', '#F7B2AD', '#91C7B1', '#F1C40F'], pale: ['#e4e6f0', '#fdecea', '#e3f2eb', '#fcf2c6'], deep: ['#565e8c', '#bf5a53', '#3b866b', '#967806'], name: ['Purple', 'Pink', 'Green', 'Yellow'] };
   var COL = BASE.col.slice(), PALE = BASE.pale.slice(), DEEP = BASE.deep.slice(), NAME = BASE.name.slice();
@@ -760,7 +767,7 @@ div.tilebtn { cursor: default; }
 
   // ------------------------------------------------------------ board
   function applyView() { viewG.setAttribute('transform', 'translate(' + view.tx.toFixed(2) + ' ' + view.ty.toFixed(2) + ') scale(' + view.s.toFixed(4) + ')'); }
-  function bounds() { var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
+  function bounds() { var B = E.bound(); if (B) return { x0: -B - .35, y0: -B - .5, x1: B + 1.35, y1: B + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
   function fitTarget() {
     var r = wrap.getBoundingClientRect(), b = bounds(), bw = (b.x1 - b.x0) * W, bh = (b.y1 - b.y0) * H;
     var s = Math.max(0.26, Math.min(1.25, Math.min((r.width - 8) / bw, (r.height - 8) / bh)));
@@ -840,8 +847,24 @@ div.tilebtn { cursor: default; }
   }
   function myTurn() { return !!S && !S.over && !ui.busy && !ui.cover && S.turn === viewP && !isBot(viewP); }
   function canPlan() { return !!S && started && !S.over && !ui.cover && !isBot(viewP) && cfg.seats[viewP] !== 'remote' && !!S.hands[viewP]; }
+  function borderSvg() {
+    var B = E.bound(); if (!B) return '';
+    var x0 = -B * W - 8, y0 = -B * H - 8, w = (2 * B + 1) * W + 16, h = (2 * B + 1) * H + 16, s = '';
+    s += '<rect x="' + (x0 + 4) + '" y="' + (y0 + 4) + '" width="' + (w - 8) + '" height="' + (h - 8) + '" rx="12" fill="rgba(255,255,255,.04)" stroke="none"/>';
+    s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" rx="14" fill="none" stroke="#06222a" stroke-width="14"/><rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" rx="14" fill="none" stroke="#c9a227" stroke-width="5" stroke-dasharray="14 8"/>';
+    S.board.forEach(function (e) {
+      for (var d = 0; d < 4; d++) {
+        var a = E.edgeOf(e.t, e.rot, d); if (a !== 't') continue;
+        if (!E.outside(e.x + E.DX[d], e.y + E.DY[d])) continue;
+        var px = e.x * W + EP[d][0], py = e.y * H + EP[d][1], L = E.lineAt(S.an, e.x, e.y), col = L && L.frozen ? FROZEN : COL[e.o] || NEUTRAL, vert = d === 1 || d === 3;
+        var bw = vert ? 26 : 12, bh = vert ? 12 : 26;
+        s += '<rect x="' + (px - bw / 2) + '" y="' + (py - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="4" fill="#fff" stroke="' + INK + '" stroke-width="3"/><circle cx="' + px + '" cy="' + py + '" r="3.6" fill="' + col + '" stroke="' + INK + '" stroke-width="1.2"/>';
+      }
+    });
+    return s;
+  }
   function renderMarks() {
-    var s = '', A = S.an, mine = canPlan();
+    var s = borderSvg(), A = S.an, mine = canPlan();
     A.lines.forEach(function (L) {
       if (L.locked) return;
       L.loose.forEach(function (e) {
@@ -1071,6 +1094,7 @@ div.tilebtn { cursor: default; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
+    (VARIANT === 'border' ? '<li><b>The border:</b> the board is 7 tiles each way. Track that runs into the wall is capped and counts as a station.</li>' : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
   function legend() {
@@ -1088,11 +1112,11 @@ div.tilebtn { cursor: default; }
   function showStart() {
     var np = '';
     [2, 3, 4].forEach(function (n) { np += '<label class="opt" for="np' + n + '"><input type="radio" name="np" id="np' + n + '" value="' + n + '"' + (cfg.n === n ? ' checked' : '') + '><span>' + n + ' players</span></label>'; });
-    sheet('<h1>Derail</h1><p class="sub">Lay track, steal lines, and finish them with stations.</p>' +
+    sheet('<h1>Derail' + (VARIANT === 'border' ? ': Border' : '') + '</h1><p class="sub">' + (VARIANT === 'border' ? 'A walled board and half the tiles. Track that runs into the wall is capped, as if by a station.' : 'Lay track, steal lines, and finish them with stations.') + '</p>' +
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
-      '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES + '<h2 style="margin-top:20px">All 90 tiles</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid());
+      '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES + '<h2 style="margin-top:20px">' + (VARIANT === 'border' ? 'All 53 tiles' : 'All 90 tiles') + '</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid());
   }
-  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2 style="margin-top:20px">All 90 tiles</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button></div>'); }
+  function showRules() { sheet('<h1>How to play</h1>' + RULES + '<h2 style="margin-top:20px">' + (VARIANT === 'border' ? 'All 53 tiles' : 'All 90 tiles') + '</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid() + '<p class="sub" style="margin-top:12px">Dots with a white centre mark open ends. Gold lines with a train are finished and locked. Bots see only their own tiles and the table.</p><div class="sheetbar"><button type="button" class="btn primary" id="closeBtn">Close</button></div>'); }
   var TILE_LABEL = {
     track_hook: 'Left turn', track_corner: 'Right turn', track_straight: 'Straight, up–down', track_wave: 'Straight, across', track_tside: 'T-junction', track_tthru: 'T-junction, through',
     bridge_hook: 'Steel left turn', bridge_corner: 'Steel right turn', bridge_straight: 'Steel straight, up–down', bridge_wave: 'Steel straight, across', bridge_tside: 'Steel T-junction',
@@ -1106,7 +1130,8 @@ div.tilebtn { cursor: default; }
     var h = '';
     groups.forEach(function (g) {
       var n = 0; g[1].forEach(function (t) { n += E.DEFS[t].count || 1; });
-      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { return '<div>' + tileSvg(t, 0, 0) + '<b>×' + (E.DEFS[t].count || 1) + '</b><small>' + TILE_LABEL[t] + '</small></div>'; }).join('') + '</div>';
+      var cnt = function (t) { var c = E.DEFS[t].count || 1; return VARIANT === 'border' && t !== 'hub' ? Math.ceil(c / 2) : c; }; n = 0; g[1].forEach(function (t) { n += cnt(t); });
+      h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { return '<div>' + tileSvg(t, 0, 0) + '<b>×' + cnt(t) + '</b><small>' + TILE_LABEL[t] + '</small></div>'; }).join('') + '</div>';
     });
     return h;
   }
@@ -1127,7 +1152,7 @@ div.tilebtn { cursor: default; }
   function startGame() {
     net.reset(); var np = document.querySelector('input[name="np"]:checked'); cfg.n = np ? +np.value : 2;
     for (var p = 0; p < 4; p++) { var sel = $('seat' + p); if (sel) cfg.seats[p] = sel.value; }
-    setPalette(randomPalette()); S = E.newGame({ players: cfg.n }); started = true; lastBounds = ''; feed = []; setSole();
+    setPalette(randomPalette()); S = E.newGame(gameOpts(cfg.n)); started = true; lastBounds = ''; feed = []; setSole();
     hideSheet(); fit(true, true); renderScores(); ui.cover = false; next();
   }
 
@@ -1214,7 +1239,7 @@ div.tilebtn { cursor: default; }
   function netMsg(t) { var el = $('netmsg'); if (el) el.textContent = t; }
   function codeOf() { var el = $('room'); return el ? el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : ''; }
   function randomCode() { var a = 'ABCDEFGHJKLMNPQRSTUVWXYZ', s = ''; for (var i = 0; i < 4; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
-  function roomId(code) { return 'rival-lines-room-' + code.toLowerCase(); }
+  function roomId(code) { return 'rival-lines-room-' + (VARIANT ? VARIANT + '-' : '') + code.toLowerCase(); }
   function onlineBlock() {
     if (!window.Peer) return '';
     return '<h2>Play online</h2><p class="sub">One person hosts a room and shares the code. Everyone else opens this page, types the same code and presses Join. The host keeps this page open for the whole game.</p>' +
@@ -1329,7 +1354,7 @@ div.tilebtn { cursor: default; }
     net.conns.forEach(function (c, i) { c.seat = i + 1; names[i + 1] = c.name; });
     for (p = 1 + k; p < total; p++) names[p] = 'Bot ' + (p - k);
     net.names = names; net.lobby = false; net.waiting = false; net.pending = null;
-    setPalette(randomPalette()); S = E.newGame({ players: total }); started = true; lastBounds = ''; feed = []; sole = 0; viewP = 0; ui.cover = false;
+    setPalette(randomPalette()); S = E.newGame(gameOpts(total)); started = true; lastBounds = ''; feed = []; sole = 0; viewP = 0; ui.cover = false;
     hideSheet(); fit(true, true); renderScores(); net.cast(null); next();
   }
   function seatToken(code) {
@@ -1410,7 +1435,7 @@ div.tilebtn { cursor: default; }
     wire(); requestAnimationFrame(ticker);
     var restored = false;
     try { if (data && data.game && data.game.v === 3 && data.cfg) { S = E.deserialize(data.game); cfg = data.cfg; setPalette(cfg.pal); started = !!data.started; restored = started; } } catch (e) { S = null; }
-    if (!S) S = E.newGame({ players: cfg.n });
+    if (!S) S = E.newGame(gameOpts(cfg.n));
     setSole(); if (restored && typeof data.viewP === 'number') viewP = data.viewP;
     fit(true, true); renderScores();
     if (restored) { if (S.over) endGame(); else if (isBot(S.turn)) botTurn(S.turn); else { viewP = S.turn; beginTurn(); } }
