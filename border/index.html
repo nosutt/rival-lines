@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "border";
-window.RL_BUILD = "20261124-0007";
+window.RL_BUILD = "20261124-0105";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -184,7 +184,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: Border</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-0007</div></div>
+    <div id="mid"><div id="title">Derail: Border</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-0105</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -215,8 +215,24 @@ div.tilebtn { cursor: default; }
   function opp(d) { return (d + 2) & 3; }
   function key(x, y) { return x + ',' + y; }
   var BOUND = 0; // 0 = open table; n = board runs from -n to n each way
-  function outside(x, y) { return BOUND > 0 && (Math.abs(x) > BOUND || Math.abs(y) > BOUND); }
+  var MASK = null; // a set of allowed squares, for shaped boards
+  function outside(x, y) { if (MASK) return !MASK.has(x + ',' + y); return BOUND > 0 && (Math.abs(x) > BOUND || Math.abs(y) > BOUND); }
   function setBound(n) { BOUND = n || 0; }
+  function setMask(arr) { MASK = arr && arr.length ? new Set(arr) : null; }
+  function extent() { // the board's squares as a box, or null on an open table
+    if (MASK) { var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; MASK.forEach(function (k) { var p = k.split(','), x = +p[0], y = +p[1]; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }); return { x0: x0, y0: y0, x1: x1, y1: y1 }; }
+    return BOUND ? { x0: -BOUND, y0: -BOUND, x1: BOUND, y1: BOUND } : null;
+  }
+  function shapeMask(rnd, blocks) { // a random polyomino of 3x3 blocks, like a Tetris piece, grown from the hub's block
+    var got = ['0,0'], seen = { '0,0': 1 }, D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    while (got.length < blocks) {
+      var b = got[Math.floor(rnd() * got.length)].split(','), d = D4[Math.floor(rnd() * 4)], nk = (+b[0] + d[0]) + ',' + (+b[1] + d[1]);
+      if (!seen[nk]) { seen[nk] = 1; got.push(nk); }
+    }
+    var cells = [];
+    got.forEach(function (k) { var p = k.split(','), bx = +p[0] * 3, by = +p[1] * 3; for (var i = -1; i <= 1; i++) for (var j = -1; j <= 1; j++) cells.push((bx + i) + ',' + (by + j)); });
+    return cells;
+  }
 
   var DEFS = {};
   function D(id, kind, shape, edges, count) { DEFS[id] = { id: id, kind: kind, shape: shape, edges: edges, count: count }; }
@@ -453,18 +469,19 @@ div.tilebtn { cursor: default; }
   function newGame(opts) {
     opts = opts || {};
     var seed = opts.seed === undefined ? Math.floor(Math.random() * 4294967296) : opts.seed, rnd = rng(seed), bag = [];
-    Object.keys(DEFS).forEach(function (id) { var c = DEFS[id].count; if (opts.half) c = Math.ceil(c / 2); for (var i = 0; i < c; i++) bag.push(id); });
+    Object.keys(DEFS).forEach(function (id) { var c = DEFS[id].count; if (opts.half) c = Math.ceil(c / 2); if (opts.noSab && DEFS[id].kind === 'sabotage') c = 0; for (var i = 0; i < c; i++) bag.push(id); });
     shuffle(bag, rnd);
     var np = Math.max(2, Math.min(4, opts.players || 2)), hands = [], scores = [], pi;
     for (pi = 0; pi < np; pi++) { hands.push([]); scores.push(0); }
-    setBound(opts.border || 0);
-    var S = { v: 3, n: np, bound: opts.border || 0, half: !!opts.half, seed: seed, board: new Map(), bag: bag, hands: hands, scores: scores, lines: [], turn: 0, idle: 0, moveNo: 0, over: false, last: null, rs: Math.floor(rnd() * 4294967296) };
+    var mask = opts.shape === 'random' ? shapeMask(rnd, opts.blocks || 6) : null;
+    setBound(mask ? 0 : (opts.border || 0)); setMask(mask);
+    var S = { v: 3, n: np, bound: mask ? 0 : (opts.border || 0), mask: mask, noSab: !!opts.noSab, half: !!opts.half, seed: seed, board: new Map(), bag: bag, hands: hands, scores: scores, lines: [], turn: 0, idle: 0, moveNo: 0, over: false, last: null, rs: Math.floor(rnd() * 4294967296) };
     S.board.set(key(0, 0), { t: 'hub', rot: 0, x: 0, y: 0, o: -1, br: 0, im: 0, lk: 0, lb: null });
     S.an = analyze(S.board);
-    if (opts.obstacles && S.bound) { // scatter lakes, parks and monuments, away from the hub
-      var kinds = ['lake', 'park', 'monument'], placed = 0, tries = 0, B = S.bound;
+    if (opts.obstacles && (S.bound || S.mask)) { // scatter lakes, parks and monuments, away from the hub
+      var kinds = ['lake', 'park', 'monument'], placed = 0, tries = 0, B = S.bound, pool = S.mask;
       while (placed < opts.obstacles && tries++ < 400) {
-        var ox = Math.floor(rnd() * (2 * B + 1)) - B, oy = Math.floor(rnd() * (2 * B + 1)) - B;
+        var ox, oy; if (pool) { var pk = pool[Math.floor(rnd() * pool.length)].split(','); ox = +pk[0]; oy = +pk[1]; } else { ox = Math.floor(rnd() * (2 * B + 1)) - B; oy = Math.floor(rnd() * (2 * B + 1)) - B; }
         if (Math.abs(ox) + Math.abs(oy) < 2 || S.board.has(key(ox, oy))) continue;
         var crowd = 0; for (var dd = 0; dd < 4; dd++) if (S.board.has(key(ox + DX[dd], oy + DY[dd]))) crowd++;
         if (crowd) continue;
@@ -539,10 +556,10 @@ div.tilebtn { cursor: default; }
   function deserialize(o) {
     var S = JSON.parse(JSON.stringify(o)); var m = new Map();
     S.board.forEach(function (e) { m.set(key(e.x, e.y), e); });
-    setBound(S.bound || 0); S.board = m; S.an = analyze(m); return S;
+    setBound(S.bound || 0); setMask(S.mask || null); S.board = m; S.an = analyze(m); return S;
   }
 
-  root.Engine = { DX: DX, DY: DY, opp: opp, key: key, DEFS: DEFS, SHAPE_EDGES: SHAPE_EDGES, HAND: HAND, edgeOf: edgeOf, hasTrack: hasTrack, symmetric: symmetric, analyze: analyze, lineAt: lineAt, lineValue: lineValue, simPlace: simPlace, simSabotage: simSabotage, simRepair: simRepair, canBreak: canBreak, whyNot: whyNot, outside: outside, setBound: setBound, bound: function () { return BOUND; }, frontier: frontier, legalMoves: legalMoves, newGame: newGame, applyMove: applyMove, tradeHand: tradeHand, pass: pass, totals: totals, serialize: serialize, deserialize: deserialize, rng: rng };
+  root.Engine = { DX: DX, DY: DY, opp: opp, key: key, DEFS: DEFS, SHAPE_EDGES: SHAPE_EDGES, HAND: HAND, edgeOf: edgeOf, hasTrack: hasTrack, symmetric: symmetric, analyze: analyze, lineAt: lineAt, lineValue: lineValue, simPlace: simPlace, simSabotage: simSabotage, simRepair: simRepair, canBreak: canBreak, whyNot: whyNot, outside: outside, setBound: setBound, setMask: setMask, extent: extent, bound: function () { return BOUND; }, frontier: frontier, legalMoves: legalMoves, newGame: newGame, applyMove: applyMove, tradeHand: tradeHand, pass: pass, totals: totals, serialize: serialize, deserialize: deserialize, rng: rng };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -552,7 +569,7 @@ div.tilebtn { cursor: default; }
   'use strict';
   var E = root.Engine;
   // the hard bot judges what you might hold from the full tile set only; it does not track what has been played
-  function unseen(S, P) { var c = {}, U = 0; Object.keys(E.DEFS).forEach(function (t) { var n = E.DEFS[t].count; if (n && S.half) n = Math.ceil(n / 2); if (n) { c[t] = n; U += n; } }); return { c: c, U: U }; }
+  function unseen(S, P) { var c = {}, U = 0; Object.keys(E.DEFS).forEach(function (t) { var n = E.DEFS[t].count; if (n && S.half) n = Math.ceil(n / 2); if (S.noSab && E.DEFS[t].kind === 'sabotage') n = 0; if (n) { c[t] = n; U += n; } }); return { c: c, U: U }; }
   function pts(res, P) { var s = 0; res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -1) * E.lineValue(L); }); return s; }
   function holds(hand, pred) { for (var i = 0; i < hand.length; i++) if (pred(E.DEFS[hand[i]])) return true; return false; }
 
@@ -642,7 +659,8 @@ div.tilebtn { cursor: default; }
   'use strict';
   var E = window.Engine, Bot = window.Bot;
   var VARIANT = window.RL_VARIANT || '';
-  function gameOpts(n) { return VARIANT === 'border' ? { players: n, border: 3, half: true, obstacles: 5 } : { players: n }; }
+  function gameOpts(n) { return VARIANT === 'border' ? { players: n, border: 3, half: true, obstacles: 5, noSab: cfg.sab === false, shape: cfg.shape === 'random' ? 'random' : 'rect' } : { players: n }; }
+  function readVariantOpts() { var s = document.getElementById('optSab'), r = document.querySelector('input[name="shape"]:checked'); if (s) cfg.sab = s.checked; if (r) cfg.shape = r.value; }
   var W = 100, H = 62, CX = 50, CY = 31, EP = [[0, 31], [50, 0], [100, 31], [50, 62]];
   var BASE = { col: ['#7A82AB', '#F7B2AD', '#91C7B1', '#F1C40F'], pale: ['#e4e6f0', '#fdecea', '#e3f2eb', '#fcf2c6'], deep: ['#565e8c', '#bf5a53', '#3b866b', '#967806'], name: ['Purple', 'Pink', 'Green', 'Yellow'] };
   var COL = BASE.col.slice(), PALE = BASE.pale.slice(), DEEP = BASE.deep.slice(), NAME = BASE.name.slice();
@@ -822,7 +840,7 @@ div.tilebtn { cursor: default; }
 
   // ------------------------------------------------------------ board
   function applyView() { viewG.setAttribute('transform', 'translate(' + view.tx.toFixed(2) + ' ' + view.ty.toFixed(2) + ') scale(' + view.s.toFixed(4) + ')'); }
-  function bounds() { var B = E.bound(); if (B) return { x0: -B - .35, y0: -B - .5, x1: B + 1.35, y1: B + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
+  function bounds() { var X = E.extent(); if (X) return { x0: X.x0 - .35, y0: X.y0 - .5, x1: X.x1 + 1.35, y1: X.y1 + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
   function fitTarget() {
     var r = wrap.getBoundingClientRect(), b = bounds(), bw = (b.x1 - b.x0) * W, bh = (b.y1 - b.y0) * H;
     var s = Math.max(0.26, Math.min(1.25, Math.min((r.width - 8) / bw, (r.height - 8) / bh)));
@@ -903,11 +921,12 @@ div.tilebtn { cursor: default; }
   function myTurn() { return !!S && !S.over && !ui.busy && !ui.cover && S.turn === viewP && !isBot(viewP); }
   function canPlan() { return !!S && started && !S.over && !ui.cover && !isBot(viewP) && cfg.seats[viewP] !== 'remote' && !!S.hands[viewP]; }
   function borderSvg() {
-    var B = E.bound(); if (!B) return '';
-    var x0 = -B * W, y0 = -B * H, x1 = (B + 1) * W, y1 = (B + 1) * H, s = '', r = srand(4242);
-    function range(ax, ay, bx, by, nx, ny) { // a row of peaks along one side, pointing outward (nx, ny)
+    var X = E.extent(); if (!X) return '';
+    var s = '', r = srand(4242), cells = [], x, y;
+    for (x = X.x0; x <= X.x1; x++) for (y = X.y0; y <= X.y1; y++) if (!E.outside(x, y)) cells.push([x, y]);
+    function range(ax, ay, bx, by, nx, ny) { // a row of peaks along one edge, pointing outward (nx, ny)
       var len = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / len, uy = (by - ay) / len, out = '';
-      for (var t = -14; t < len + 14; t += 15 + r() * 8) {
+      for (var t = 4; t < len; t += 15 + r() * 8) {
         var cx = ax + ux * t, cy = ay + uy * t, w = 22 + r() * 14, hgt = 22 + r() * 22, base = 4;
         var lx = cx - ux * w / 2 + nx * base, ly = cy - uy * w / 2 + ny * base, rx = cx + ux * w / 2 + nx * base, ry = cy + uy * w / 2 + ny * base, px = cx + nx * (base + hgt), py = cy + ny * (base + hgt);
         var tone = ['#7d8597', '#6c757d', '#8d99ae'][Math.floor(r() * 3)];
@@ -918,13 +937,22 @@ div.tilebtn { cursor: default; }
       }
       return out;
     }
-    s += '<rect x="' + (x0 - 6) + '" y="' + (y0 - 6) + '" width="' + (x1 - x0 + 12) + '" height="' + (y1 - y0 + 12) + '" rx="10" fill="none" stroke="#5c677d" stroke-width="10"/>';
-    s += range(x0, y0, x1, y0, 0, -1) + range(x0, y1, x1, y1, 0, 1) + range(x0, y0, x0, y1, -1, 0) + range(x1, y0, x1, y1, 1, 0);
+    var floor = '', ridge = '', peaks = '';
+    cells.forEach(function (c) {
+      var x0 = c[0] * W, y0 = c[1] * H;
+      floor += '<rect x="' + (x0 + 1) + '" y="' + (y0 + 1) + '" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="6" fill="rgba(255,255,255,.05)"/>';
+      [[0, -1, x0, y0, x0 + W, y0], [0, 1, x0, y0 + H, x0 + W, y0 + H], [-1, 0, x0, y0, x0, y0 + H], [1, 0, x0 + W, y0, x0 + W, y0 + H]].forEach(function (q) {
+        if (!E.outside(c[0] + q[0], c[1] + q[1])) return;
+        ridge += '<line x1="' + q[2] + '" y1="' + q[3] + '" x2="' + q[4] + '" y2="' + q[5] + '" stroke="#5c677d" stroke-width="10" stroke-linecap="round"/>';
+        peaks += range(q[2], q[3], q[4], q[5], q[0], q[1]);
+      });
+    });
+    s += floor + ridge + peaks;
     S.board.forEach(function (e) {
       for (var d = 0; d < 4; d++) {
         if (E.edgeOf(e.t, e.rot, d) !== 't' || !E.outside(e.x + E.DX[d], e.y + E.DY[d])) continue;
         var px = e.x * W + EP[d][0], py = e.y * H + EP[d][1], L = E.lineAt(S.an, e.x, e.y), col = L && L.frozen ? FROZEN : COL[e.o] || NEUTRAL;
-        var ang = [180, 270, 0, 90][d]; // tunnel mouth facing back into the board
+        var ang = [180, 270, 0, 90][d];
         s += '<g transform="translate(' + px + ' ' + py + ') rotate(' + ang + ')"><path d="M0 -15 A15 15 0 0 1 0 15 L8 15 L8 -15 Z" fill="#6c757d" stroke="#343a40" stroke-width="2"/><path d="M1 -10 A10 10 0 0 1 1 10 Z" fill="#11151a"/><circle cx="12" cy="0" r="3.4" fill="' + col + '" stroke="' + INK + '" stroke-width="1.2"/></g>';
       }
     });
@@ -1161,7 +1189,7 @@ div.tilebtn { cursor: default; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (VARIANT === 'border' ? '<li><b>The mountains:</b> the board is 7 tiles each way, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li><li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>' : '') +
+    (VARIANT === 'border' ? '<li><b>The mountains:</b> the board is a 7 by 7 rectangle or a random shape, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li><li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>' : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
   function legend() {
@@ -1180,6 +1208,7 @@ div.tilebtn { cursor: default; }
     var np = '';
     [2, 3, 4].forEach(function (n) { np += '<label class="opt" for="np' + n + '"><input type="radio" name="np" id="np' + n + '" value="' + n + '"' + (cfg.n === n ? ' checked' : '') + '><span>' + n + ' players</span></label>'; });
     sheet('<h1>Derail' + (VARIANT === 'border' ? ': Border' : '') + '</h1><p class="sub">' + (VARIANT === 'border' ? 'Build a city inside a ring of mountains, with half the tiles. Tunnels into the mountains count as stations.' : 'Lay track, steal lines, and finish them with stations.') + '</p>' +
+      (VARIANT === 'border' ? '<h2>Board</h2><div class="opts row">' + ['rect', 'random'].map(function (v) { return '<label class="opt" for="shape_' + v + '"><input type="radio" name="shape" id="shape_' + v + '" value="' + v + '"' + ((cfg.shape || 'rect') === v ? ' checked' : '') + '><span>' + (v === 'rect' ? 'Rectangle' : 'Random shape') + '</span></label>'; }).join('') + '</div><div class="opts" style="margin-top:6px"><label class="opt" for="optSab"><input type="checkbox" id="optSab"' + (cfg.sab === false ? '' : ' checked') + '><span>Sabotage tiles (broken track)</span></label></div>' : '') +
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
       '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES + '<h2 style="margin-top:20px">' + (VARIANT === 'border' ? 'All 53 tiles' : 'All 90 tiles') + '</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid());
   }
@@ -1197,7 +1226,7 @@ div.tilebtn { cursor: default; }
     var h = '';
     groups.forEach(function (g) {
       var n = 0; g[1].forEach(function (t) { n += E.DEFS[t].count || 1; });
-      var cnt = function (t) { var c = E.DEFS[t].count || 1; return VARIANT === 'border' && t !== 'hub' ? Math.ceil(c / 2) : c; }; n = 0; g[1].forEach(function (t) { n += cnt(t); });
+      var cnt = function (t) { var c = E.DEFS[t].count || 1; return VARIANT === 'border' && t !== 'hub' ? Math.ceil(c / 2) : c; }; if (VARIANT === 'border' && cfg.sab === false && g[0].indexOf('Broken') === 0) return; n = 0; g[1].forEach(function (t) { n += cnt(t); });
       h += '<h2>' + g[0] + ': ' + n + '</h2><div class="tilegrid">' + g[1].map(function (t) { return '<div>' + tileSvg(t, 0, 0) + '<b>×' + cnt(t) + '</b><small>' + TILE_LABEL[t] + '</small></div>'; }).join('') + '</div>';
     });
     return h;
@@ -1217,7 +1246,7 @@ div.tilebtn { cursor: default; }
   }
   function setSole() { var h = humans(); sole = h.length === 1 ? h[0] : -1; viewP = h.length ? h[0] : 0; }
   function startGame() {
-    net.reset(); var np = document.querySelector('input[name="np"]:checked'); cfg.n = np ? +np.value : 2;
+    net.reset(); readVariantOpts(); var np = document.querySelector('input[name="np"]:checked'); cfg.n = np ? +np.value : 2;
     for (var p = 0; p < 4; p++) { var sel = $('seat' + p); if (sel) cfg.seats[p] = sel.value; }
     setPalette(randomPalette()); S = E.newGame(gameOpts(cfg.n)); started = true; lastBounds = ''; feed = []; setSole();
     hideSheet(); fit(true, true); renderScores(); ui.cover = false; next();
@@ -1272,7 +1301,7 @@ div.tilebtn { cursor: default; }
       else if (id === 'tilesBtn') showTiles();
       else if (id === 'rulesBack') showRules();
       else if (id === 'showBtn') { hideSheet(); beginTurn(); }
-      else if (id === 'hostBtn') { var hc = codeOf() || randomCode(); if ($('room')) $('room').value = hc; hostRoom(hc, clean($('pname') && $('pname').value)); }
+      else if (id === 'hostBtn') { readVariantOpts(); var hc = codeOf() || randomCode(); if ($('room')) $('room').value = hc; hostRoom(hc, clean($('pname') && $('pname').value)); }
       else if (id === 'joinBtn') { var jc = codeOf(); if (!jc) netMsg('Type the room code your host gave you.'); else joinRoom(jc, clean($('pname') && $('pname').value)); }
       else if (id === 'goBtn') hostStart();
       else if (id === 'leaveBtn') { net.reset(); showStart(); }
