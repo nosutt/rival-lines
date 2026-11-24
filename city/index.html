@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-2028";
+window.RL_BUILD = "20261124-2036";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -233,7 +233,7 @@ body.city #market .mlabel { font-weight: 400; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2028</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2036</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -537,17 +537,13 @@ body.city #market .mlabel { font-weight: 400; }
   function takeTile(S, P, i) {
     if (S.drawFor !== P) throw new Error('not drawing');
     var t = null;
-    if (i >= 0 && S.market && i < S.market.length) { t = S.market.splice(i, 1)[0]; if (S.bag.length) S.market.push(S.bag.pop()); }
-    else if (S.bag.length) {
-      t = S.bag.pop();
-      if (S.market && S.market.length && S.bag.length) { // drawing blind keeps the row moving: the oldest face-up tile goes back in the bag, a new one turns up
-        var back = S.market.shift(); S.bag.splice(Math.floor(Math.random() * (S.bag.length + 1)), 0, back); S.market.push(S.bag.pop());
-      }
-    }
-    else if (S.market && S.market.length) t = S.market.shift();
+    if (S.market && S.market.length) { // always one of the face-up tiles; the row refills from the bag
+      if (!(i >= 0 && i < S.market.length)) i = 0;
+      t = S.market.splice(i, 1)[0]; if (S.bag.length) S.market.push(S.bag.pop());
+    } else if (S.bag.length) t = S.bag.pop();
     if (t) S.hands[P].push(t);
     S.drawFor = -1; advance(S, P); checkOver(S);
-    return { player: P, type: 'take', t: t, blind: !(i >= 0) };
+    return { player: P, type: 'take', t: t, blind: false };
   }
   function newGame(opts) {
     opts = opts || {};
@@ -748,7 +744,7 @@ body.city #market .mlabel { font-weight: 400; }
   }
   function pick(S, P) { // which face-up tile to take, or -1 for blind
     if (!S.market || !S.market.length) return -1;
-    var best = -1, bv = .3, keep = S.hands[P];
+    var best = 0, bv = -1e9, keep = S.hands[P];
     S.market.forEach(function (t, i) {
       S.hands[P] = keep.concat([t]); var v = 0, ms = E.legalMoves(S, P, S.hands[P].length - 1);
       v += Math.min(2.5, ms.length * .12); // a tile with many places to go is worth having
@@ -1788,7 +1784,7 @@ body.city #market .mlabel { font-weight: 400; }
     if (!S || !S.market) { el.innerHTML = ''; el.style.display = 'none'; return; }
     var can = drawing() && !ui.busy, h = '<span class="mlabel">' + (can ? 'Take one:' : 'Face-up:') + '</span>';
     S.market.forEach(function (t, i) { h += '<button type="button" class="tilebtn mk' + (can ? '' : ' off') + '" data-m="' + i + '" id="mk' + i + '" aria-label="Take ' + tileName(t) + '" title="' + tileName(t) + '"' + (can ? '' : ' disabled') + '>' + tileSvg(t, 0, viewP) + '</button>'; });
-    h += '<button type="button" class="btn' + (can ? ' primary' : '') + '" id="blind"' + (can && S.bag.length ? '' : ' disabled') + '>Draw blind</button>';
+    h += '<button type="button" class="btn' + (can ? ' primary' : '') + '" id="rand"' + (can && S.market.length ? '' : ' disabled') + '>Draw random</button>';
     el.innerHTML = h; el.style.display = '';
   }
   function takeFrom(i) {
@@ -1854,7 +1850,7 @@ body.city #market .mlabel { font-weight: 400; }
     if (k === 'penn') return B + 'played Penn.';
     return B + (ev.lineTrack > 1 ? 'extended a line.' : 'laid track.');
   }
-  function says2(ev) { var e2 = Object.assign({}, ev, { marks: null, express: 0, first: 0 }); return says(e2); }
+  function says2(ev) { var e2 = Object.assign({}, ev, { marks: null, express: 0, first: 0, expressLine: false }); return says(e2); }
   function note(ev) { if (ev.type === 'take' && ev.player === viewP) return; feed.push({ p: ev.player, t: says(ev) }); if (feed.length > 16) feed.shift(); }
   function sinceLast(p) { var i = feed.length - 1; while (i >= 0 && feed[i].p !== p) i--; return feed.slice(i + 1).map(function (f) { return f.t; }).join(' '); }
 
@@ -1884,7 +1880,7 @@ body.city #market .mlabel { font-weight: 400; }
   function beginTurn() {
     ui.cover = false; ui.busy = false; ui.preview = null; armed.what = ''; if (ui.sel !== null && ui.sel >= (S.hands[viewP] || []).length) ui.sel = null; computeMoves();
     var news = sinceLast(viewP);
-    if (drawing()) { setStatus((news ? news + ' ' : '') + '<b class="hi">Take a tile</b> from the face-up row, or draw blind.'); renderScores(); renderAll(); return; }
+    if (drawing()) { setStatus((news ? news + ' ' : '') + '<b class="hi">Take a tile</b> from the face-up row, or draw one of them at random.'); renderScores(); renderAll(); return; }
     setStatus((news ? news + ' ' : '') + (ui.sel !== null ? hintFor(S.hands[viewP][ui.sel]) : turnLine()));
     renderScores(); renderAll(); snapshot();
     if (S.turn === viewP && (humans().length === 1 || net.mode !== 'local')) chime();
@@ -1909,7 +1905,7 @@ body.city #market .mlabel { font-weight: 400; }
         // show the bot's pick from the face-up row for a moment, then take it
         var pk = Bot.pick(S, p); renderScores(); renderAll();
         var b = pk >= 0 ? $('mk' + pk) : $('blind'); if (b) b.classList.add('pick');
-        setStatus(tag(p) + (pk >= 0 ? ' takes a face-up tile.' : ' draws blind.'));
+        setStatus(tag(p) + ' takes a face-up tile.');
         return pause(animOn ? 1100 : 300).then(function () { var ev2 = E.takeTile(S, p, pk); note(ev2); net.cast(ev2); renderScores(); renderAll(); return pause(animOn ? 350 : 60); }).then(next);
       });
     });
@@ -2011,7 +2007,7 @@ body.city #market .mlabel { font-weight: 400; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (CITY ? '<li><b>Landmarks:</b> track can never run into a park, lake or arch. Lay track alongside one instead: the first track tile laid next to it gets a station there, and that player scores +1 at once and keeps it. Trains stop there, but it does not close the line and does not multiply the line\'s score. Each landmark has only one station.</li><li><b>Bonuses:</b> An express is a finished line with tunnels on two different mountain faces. At the end, +5 goes to one player only: whoever has the longest express line. +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind. Drawing blind also slides the oldest face-up tile back into the bag and turns up a new one.</li>' : '') +
+    (CITY ? '<li><b>Landmarks:</b> track can never run into a park, lake or arch. Lay track alongside one instead: the first track tile laid next to it gets a station there, and that player scores +1 at once and keeps it. Trains stop there, but it does not close the line and does not multiply the line\'s score. Each landmark has only one station.</li><li><b>Bonuses:</b> An express is a finished line with tunnels on two different mountain faces. At the end, +5 goes to one player only: whoever has the longest express line. +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles, or press Draw random to get one of the three by chance. The row refills from the bag.</li>' : '') +
     (MAP ? '<li><b>The mountains:</b> the board is a 7 by 7 rectangle or a random shape, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li>' + (CITY ? '' : '<li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>') : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
@@ -2110,7 +2106,7 @@ body.city #market .mlabel { font-weight: 400; }
     }
     svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
     svg.addEventListener('wheel', function (e) { e.preventDefault(); var p = local(e); zoomAt(p.x, p.y, e.deltaY < 0 ? 1.12 : 1 / 1.12); }, { passive: false });
-    $('market').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('button') : null; if (!b) return; if (b.id === 'blind') takeFrom(-1); else if (b.hasAttribute('data-m')) takeFrom(+b.getAttribute('data-m')); });
+    $('market').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('button') : null; if (!b) return; if (b.id === 'rand') takeFrom(Math.floor(Math.random() * S.market.length)); else if (b.hasAttribute('data-m')) takeFrom(+b.getAttribute('data-m')); });
     $('hand').addEventListener('click', function (e) { var b = e.target.closest ? e.target.closest('button.tilebtn') : null; if (b) selectTile(+b.getAttribute('data-i')); });
     $('rotate').addEventListener('click', rotate);
     $('place').addEventListener('click', confirmMove);
