@@ -6,7 +6,7 @@
 <title>Derail</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
-window.RL_BUILD = "20261123-2343";
+window.RL_BUILD = "20261124-0007";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -183,7 +183,7 @@ div.tilebtn { cursor: default; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261123-2343</div></div>
+    <div id="mid"><div id="title">Derail</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-0007</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -247,6 +247,9 @@ div.tilebtn { cursor: default; }
   D('sab_tside', 'sabotage', 'tside', null, 1);
   D('penn', 'penn', null, 'xxxx', 1);
   D('hub', 'hub', null, 'pppp', 0);
+  D('lake', 'obstacle', null, '....', 0);
+  D('park', 'obstacle', null, '....', 0);
+  D('monument', 'obstacle', null, '....', 0);
 
   var SHAPE_EDGES = { hook: 't..t', corner: '..tt', straight: '.t.t', wave: 't.t.', tside: 'tt.t', tthru: 't.tt', cross: 'tttt' };
   var BONUS = { 2: 3, 3: 8, 4: 15 };
@@ -296,7 +299,7 @@ div.tilebtn { cursor: default; }
     var A = S.an, hasNb = false, freePlat = false, frozenCap = false, merge = [], caps = [], d, n, a, b, L;
     for (d = 0; d < 4; d++) {
       n = board.get(key(x + DX[d], y + DY[d])); if (!n) continue;
-      hasNb = true;
+      if (DEFS[n.t].kind !== 'obstacle') hasNb = true;
       a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d));
       L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
       if (a === '.') { if (b === '.' || b === 'x') continue; return null; }
@@ -393,7 +396,8 @@ div.tilebtn { cursor: default; }
     var A = S.an, hasNb = false, frozenTouch = false, d, n, a, b, L;
     for (d = 0; d < 4; d++) {
       n = S.board.get(key(x + DX[d], y + DY[d])); if (!n) continue;
-      hasNb = true; a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d)); L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
+      if (DEFS[n.t].kind !== 'obstacle') hasNb = true; a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d)); L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
+      if (DEFS[n.t].kind === 'obstacle' && a !== '.') return 'Track and stations cannot run into the ' + n.t + ' on the ' + SIDE[d] + '.';
       if (a === '.') { if (b === '.' || b === 'x') continue; return (b === 'p' ? 'A station' : 'Track') + ' on the ' + SIDE[d] + ' points into this space, and your tile is blank on that side.'; }
       if (a === 'p' && b === 'p') return 'Your station would face another station on the ' + SIDE[d] + '. Stations need track between them.';
       if (b === '.') { if (a === 'x') continue; return 'Your ' + (a === 'p' ? 'station' : 'track') + ' would run into a blank side on the ' + SIDE[d] + '.'; }
@@ -456,6 +460,17 @@ div.tilebtn { cursor: default; }
     var S = { v: 3, n: np, bound: opts.border || 0, half: !!opts.half, seed: seed, board: new Map(), bag: bag, hands: hands, scores: scores, lines: [], turn: 0, idle: 0, moveNo: 0, over: false, last: null, rs: Math.floor(rnd() * 4294967296) };
     S.board.set(key(0, 0), { t: 'hub', rot: 0, x: 0, y: 0, o: -1, br: 0, im: 0, lk: 0, lb: null });
     S.an = analyze(S.board);
+    if (opts.obstacles && S.bound) { // scatter lakes, parks and monuments, away from the hub
+      var kinds = ['lake', 'park', 'monument'], placed = 0, tries = 0, B = S.bound;
+      while (placed < opts.obstacles && tries++ < 400) {
+        var ox = Math.floor(rnd() * (2 * B + 1)) - B, oy = Math.floor(rnd() * (2 * B + 1)) - B;
+        if (Math.abs(ox) + Math.abs(oy) < 2 || S.board.has(key(ox, oy))) continue;
+        var crowd = 0; for (var dd = 0; dd < 4; dd++) if (S.board.has(key(ox + DX[dd], oy + DY[dd]))) crowd++;
+        if (crowd) continue;
+        S.board.set(key(ox, oy), { t: kinds[placed % 3], rot: 0, x: ox, y: oy, o: -1, br: 0, im: 0, lk: 0, lb: null }); placed++;
+      }
+      S.an = analyze(S.board);
+    }
     for (pi = 0; pi < np; pi++) draw(S, pi);
     return S;
   }
@@ -626,7 +641,7 @@ div.tilebtn { cursor: default; }
   'use strict';
   var E = window.Engine, Bot = window.Bot;
   var VARIANT = window.RL_VARIANT || '';
-  function gameOpts(n) { return VARIANT === 'border' ? { players: n, border: 3, half: true } : { players: n }; }
+  function gameOpts(n) { return VARIANT === 'border' ? { players: n, border: 3, half: true, obstacles: 5 } : { players: n }; }
   var W = 100, H = 62, CX = 50, CY = 31, EP = [[0, 31], [50, 0], [100, 31], [50, 62]];
   var BASE = { col: ['#7A82AB', '#F7B2AD', '#91C7B1', '#F1C40F'], pale: ['#e4e6f0', '#fdecea', '#e3f2eb', '#fcf2c6'], deep: ['#565e8c', '#bf5a53', '#3b866b', '#967806'], name: ['Purple', 'Pink', 'Green', 'Yellow'] };
   var COL = BASE.col.slice(), PALE = BASE.pale.slice(), DEEP = BASE.deep.slice(), NAME = BASE.name.slice();
@@ -673,9 +688,47 @@ div.tilebtn { cursor: default; }
   function burst(m, bg) {
     return '<circle cx="' + m[0] + '" cy="' + m[1] + '" r="12.5" fill="' + bg + '"/><polygon points="' + star(m[0], m[1], 12, 6.4, 8) + '" fill="' + SIGNAL + '" stroke="' + INK + '" stroke-width="1.6" stroke-linejoin="round"/><rect x="' + (m[0] - 1.3) + '" y="' + (m[1] - 5.6) + '" width="2.6" height="6.4" rx="1" fill="' + INK + '"/><circle cx="' + m[0] + '" cy="' + (m[1] + 3.7) + '" r="1.5" fill="' + INK + '"/>';
   }
+  function srand(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  var ROOF = ['#e07a5f', '#3d5a80', '#81b29a', '#f2cc8f', '#9c6644', '#6d597a'], WALL = ['#f4f1de', '#e9e3d5', '#dfe7ec', '#f6e7d8'];
+  function building(x, y, w, h, r) {
+    var roof = ROOF[Math.floor(r() * ROOF.length)], wall = WALL[Math.floor(r() * WALL.length)], s = '';
+    s += '<rect x="' + (x + 1.2) + '" y="' + (y + 1.8) + '" width="' + w + '" height="' + h + '" rx="1.5" fill="rgba(0,0,0,.18)"/>';
+    s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="' + wall + '" stroke="#5b6670" stroke-width=".7"/>';
+    s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + Math.min(4, h * .3) + '" rx="1.5" fill="' + roof + '"/>';
+    for (var wx = x + 2.5; wx < x + w - 2; wx += 4.2) for (var wy = y + 5.5; wy < y + h - 2; wy += 4.2) s += '<rect x="' + wx.toFixed(1) + '" y="' + wy.toFixed(1) + '" width="2" height="2" fill="' + (r() < .3 ? '#ffd166' : '#7b8a96') + '"/>';
+    return s;
+  }
+  function tree(x, y, r0) { return '<circle cx="' + (x + .8) + '" cy="' + (y + 1.2) + '" r="' + r0 + '" fill="rgba(0,0,0,.15)"/><circle cx="' + x + '" cy="' + y + '" r="' + r0 + '" fill="#6a994e" stroke="#386641" stroke-width=".7"/><circle cx="' + (x - r0 * .3) + '" cy="' + (y - r0 * .3) + '" r="' + (r0 * .35) + '" fill="#a7c957"/>'; }
+  function cityDecor(seed) {
+    var r = srand(seed), s = '', C = [[3, 3], [69, 3], [3, 40], [69, 40]];
+    C.forEach(function (c) {
+      var k = r();
+      if (k < .5) { var n = 1 + Math.floor(r() * 2), x = c[0]; for (var i = 0; i < n; i++) { var w = 10 + Math.floor(r() * 6), h = 11 + Math.floor(r() * 7); if (x + w > c[0] + 28) break; s += building(x, c[1] + (19 - h), w, h, r); x += w + 2; } }
+      else if (k < .82) { for (var j = 0; j < 3; j++) s += tree(c[0] + 5 + r() * 18, c[1] + 5 + r() * 9, 3 + r() * 2); }
+    });
+    return s;
+  }
+  function obstacleTile(t, seed) {
+    var r = srand(seed), s = '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + (t === 'lake' ? '#cfe8f3' : t === 'park' ? '#cfe3b8' : '#ece4d4') + '" stroke="#b9c3c8" stroke-width="1.2"/>';
+    if (t === 'lake') {
+      s += '<path d="M14 30 C14 12 40 8 54 12 C74 6 90 18 86 32 C92 48 66 56 48 52 C28 58 12 46 14 30 Z" fill="#4ea8de" stroke="#2a6f97" stroke-width="2"/>';
+      s += '<path d="M30 26 q6 -3 12 0 M52 36 q6 -3 12 0 M40 44 q5 -2.5 10 0" stroke="#cfeaf7" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+      s += tree(10, 52, 3.5) + tree(90, 10, 3.5);
+    } else if (t === 'park') {
+      s += '<path d="M8 50 C30 34 60 46 92 22" stroke="#e9dcc0" stroke-width="5" fill="none" stroke-linecap="round"/>';
+      for (var i = 0; i < 9; i++) s += tree(10 + r() * 80, 10 + r() * 42, 3.5 + r() * 2.5);
+      s += '<circle cx="50" cy="31" r="5" fill="#4ea8de" stroke="#2a6f97" stroke-width="1.2"/>';
+    } else {
+      s += '<rect x="26" y="14" width="48" height="34" rx="3" fill="#d8ccb4" stroke="#9c8f74" stroke-width="1.2"/><rect x="34" y="20" width="32" height="22" rx="2" fill="#e8dfcb"/>';
+      s += '<polygon points="50,6 54,14 54,38 46,38 46,14" fill="#f4f1de" stroke="#6b705c" stroke-width="1.4"/><rect x="42" y="38" width="16" height="5" fill="#b7ab8f" stroke="#6b705c" stroke-width="1"/>';
+      s += tree(16, 14, 4) + tree(84, 14, 4) + tree(16, 48, 4) + tree(84, 48, 4);
+    }
+    return s;
+  }
   // v: {t, rot, col, lock, broken, frozen, plat[4], gold[4], penn[4]}
   function paintTile(v) {
     var def = E.DEFS[v.t], kind = def.kind, fill = v.lock || PAPER, s, d;
+    if (kind === 'obstacle') return obstacleTile(v.t, v.seed || 1);
     if (kind === 'sabotage') {
       fill = '#1d2731';
       var sd = dirsOfEdges(E.SHAPE_EDGES[def.shape], v.rot, 't'), sp = trackD(sd);
@@ -690,6 +743,7 @@ div.tilebtn { cursor: default; }
       return s + '<circle cx="50" cy="31" r="15.5" fill="#fff" stroke="' + INK + '" stroke-width="4"/><polygon points="' + star(50, 31, 10, 4.3, 5) + '" fill="#e9b200" stroke="' + INK + '" stroke-width="1.3" stroke-linejoin="round"/>';
     }
     s = '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + fill + '" stroke="#c3ccd1" stroke-width="1.2"/>';
+    if (VARIANT === 'border' && v.seed) s += cityDecor(v.seed);
     var td = dirsOfEdges(def.edges, v.rot, 't'), pdirs = dirsOfEdges(def.edges, v.rot, 'p');
     if (td.length) {
       s += rail(trackD(td), (v.broken || v.frozen) ? FROZEN : v.col, kind === 'bridge', !!v.lock);
@@ -714,7 +768,7 @@ div.tilebtn { cursor: default; }
   function viewOf(board, an, e, ovOwner, ovUnlock) {
     var k = E.key(e.x, e.y), L = E.hasTrack(e.t) ? E.lineAt(an, e.x, e.y) : null;
     var own = ovOwner && ovOwner.has(k) ? ovOwner.get(k) : e.o, locked = !!e.lk && !(ovUnlock && ovUnlock.has(k));
-    var v = { t: e.t, rot: e.rot, col: own >= 0 ? COL[own] : NEUTRAL, lock: locked && own >= 0 ? PALE[own] : null, broken: !!e.br, frozen: !!(L && L.frozen), plat: [null, null, null, null], gold: [false, false, false, false], penn: null };
+    var v = { seed: (e.x * 73856093) ^ (e.y * 19349663) ^ 0x5bd1e995, t: e.t, rot: e.rot, col: own >= 0 ? COL[own] : NEUTRAL, lock: locked && own >= 0 ? PALE[own] : null, broken: !!e.br, frozen: !!(L && L.frozen), plat: [null, null, null, null], gold: [false, false, false, false], penn: null };
     for (var d = 0; d < 4; d++) {
       var a = E.edgeOf(e.t, e.rot, d); if (a !== 'p' && a !== 'x') continue;
       var n = board.get(E.key(e.x + E.DX[d], e.y + E.DY[d])), b = n ? E.edgeOf(n.t, n.rot, E.opp(d)) : null;
@@ -849,16 +903,28 @@ div.tilebtn { cursor: default; }
   function canPlan() { return !!S && started && !S.over && !ui.cover && !isBot(viewP) && cfg.seats[viewP] !== 'remote' && !!S.hands[viewP]; }
   function borderSvg() {
     var B = E.bound(); if (!B) return '';
-    var x0 = -B * W - 8, y0 = -B * H - 8, w = (2 * B + 1) * W + 16, h = (2 * B + 1) * H + 16, s = '';
-    s += '<rect x="' + (x0 + 4) + '" y="' + (y0 + 4) + '" width="' + (w - 8) + '" height="' + (h - 8) + '" rx="12" fill="rgba(255,255,255,.04)" stroke="none"/>';
-    s += '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" rx="14" fill="none" stroke="#06222a" stroke-width="14"/><rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" rx="14" fill="none" stroke="#c9a227" stroke-width="5" stroke-dasharray="14 8"/>';
+    var x0 = -B * W, y0 = -B * H, x1 = (B + 1) * W, y1 = (B + 1) * H, s = '', r = srand(4242);
+    function range(ax, ay, bx, by, nx, ny) { // a row of peaks along one side, pointing outward (nx, ny)
+      var len = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / len, uy = (by - ay) / len, out = '';
+      for (var t = -14; t < len + 14; t += 15 + r() * 8) {
+        var cx = ax + ux * t, cy = ay + uy * t, w = 22 + r() * 14, hgt = 22 + r() * 22, base = 4;
+        var lx = cx - ux * w / 2 + nx * base, ly = cy - uy * w / 2 + ny * base, rx = cx + ux * w / 2 + nx * base, ry = cy + uy * w / 2 + ny * base, px = cx + nx * (base + hgt), py = cy + ny * (base + hgt);
+        var tone = ['#7d8597', '#6c757d', '#8d99ae'][Math.floor(r() * 3)];
+        out += '<polygon points="' + lx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + px.toFixed(1) + ',' + py.toFixed(1) + ' ' + rx.toFixed(1) + ',' + ry.toFixed(1) + '" fill="' + tone + '" stroke="#4a4e69" stroke-width="1.2" stroke-linejoin="round"/>';
+        out += '<polygon points="' + px.toFixed(1) + ',' + py.toFixed(1) + ' ' + ((px + rx) / 2).toFixed(1) + ',' + ((py + ry) / 2).toFixed(1) + ' ' + cx.toFixed(1) + ',' + cy.toFixed(1) + '" fill="rgba(0,0,0,.18)"/>';
+        var sx = px + (lx - px) * .28, sy = py + (ly - py) * .28, tx = px + (rx - px) * .28, ty = py + (ry - py) * .28;
+        out += '<polygon points="' + px.toFixed(1) + ',' + py.toFixed(1) + ' ' + sx.toFixed(1) + ',' + sy.toFixed(1) + ' ' + ((sx + tx) / 2 + nx * 2).toFixed(1) + ',' + ((sy + ty) / 2 + ny * 2).toFixed(1) + ' ' + tx.toFixed(1) + ',' + ty.toFixed(1) + '" fill="#f8f9fa"/>';
+      }
+      return out;
+    }
+    s += '<rect x="' + (x0 - 6) + '" y="' + (y0 - 6) + '" width="' + (x1 - x0 + 12) + '" height="' + (y1 - y0 + 12) + '" rx="10" fill="none" stroke="#5c677d" stroke-width="10"/>';
+    s += range(x0, y0, x1, y0, 0, -1) + range(x0, y1, x1, y1, 0, 1) + range(x0, y0, x0, y1, -1, 0) + range(x1, y0, x1, y1, 1, 0);
     S.board.forEach(function (e) {
       for (var d = 0; d < 4; d++) {
-        var a = E.edgeOf(e.t, e.rot, d); if (a !== 't') continue;
-        if (!E.outside(e.x + E.DX[d], e.y + E.DY[d])) continue;
-        var px = e.x * W + EP[d][0], py = e.y * H + EP[d][1], L = E.lineAt(S.an, e.x, e.y), col = L && L.frozen ? FROZEN : COL[e.o] || NEUTRAL, vert = d === 1 || d === 3;
-        var bw = vert ? 26 : 12, bh = vert ? 12 : 26;
-        s += '<rect x="' + (px - bw / 2) + '" y="' + (py - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="4" fill="#fff" stroke="' + INK + '" stroke-width="3"/><circle cx="' + px + '" cy="' + py + '" r="3.6" fill="' + col + '" stroke="' + INK + '" stroke-width="1.2"/>';
+        if (E.edgeOf(e.t, e.rot, d) !== 't' || !E.outside(e.x + E.DX[d], e.y + E.DY[d])) continue;
+        var px = e.x * W + EP[d][0], py = e.y * H + EP[d][1], L = E.lineAt(S.an, e.x, e.y), col = L && L.frozen ? FROZEN : COL[e.o] || NEUTRAL;
+        var ang = [180, 270, 0, 90][d]; // tunnel mouth facing back into the board
+        s += '<g transform="translate(' + px + ' ' + py + ') rotate(' + ang + ')"><path d="M0 -15 A15 15 0 0 1 0 15 L8 15 L8 -15 Z" fill="#6c757d" stroke="#343a40" stroke-width="2"/><path d="M1 -10 A10 10 0 0 1 1 10 Z" fill="#11151a"/><circle cx="12" cy="0" r="3.4" fill="' + col + '" stroke="' + INK + '" stroke-width="1.2"/></g>';
       }
     });
     return s;
@@ -1094,7 +1160,7 @@ div.tilebtn { cursor: default; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (VARIANT === 'border' ? '<li><b>The border:</b> the board is 7 tiles each way. Track that runs into the wall is capped and counts as a station.</li>' : '') +
+    (VARIANT === 'border' ? '<li><b>The mountains:</b> the board is 7 tiles each way, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li><li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>' : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
   function legend() {
@@ -1112,7 +1178,7 @@ div.tilebtn { cursor: default; }
   function showStart() {
     var np = '';
     [2, 3, 4].forEach(function (n) { np += '<label class="opt" for="np' + n + '"><input type="radio" name="np" id="np' + n + '" value="' + n + '"' + (cfg.n === n ? ' checked' : '') + '><span>' + n + ' players</span></label>'; });
-    sheet('<h1>Derail' + (VARIANT === 'border' ? ': Border' : '') + '</h1><p class="sub">' + (VARIANT === 'border' ? 'A walled board and half the tiles. Track that runs into the wall is capped, as if by a station.' : 'Lay track, steal lines, and finish them with stations.') + '</p>' +
+    sheet('<h1>Derail' + (VARIANT === 'border' ? ': Border' : '') + '</h1><p class="sub">' + (VARIANT === 'border' ? 'Build a city inside a ring of mountains, with half the tiles. Tunnels into the mountains count as stations.' : 'Lay track, steal lines, and finish them with stations.') + '</p>' +
       '<h2>Players</h2><div class="opts row">' + np + '</div><div class="seats">' + seatRows() + '</div><p class="sub">Two or more people share this screen: each hand stays hidden until its owner presses a button. Colours are dealt at random each game.</p>' +
       '<div class="sheetbar"><button type="button" class="btn primary" id="startBtn">Start on this device</button>' + (started ? '<button type="button" class="btn" id="closeBtn">Back to the game</button>' : '') + '</div>' + onlineBlock() + '<h2 style="margin-top:20px">How to play</h2>' + RULES + '<h2 style="margin-top:20px">' + (VARIANT === 'border' ? 'All 53 tiles' : 'All 90 tiles') + '</h2><p class="sub">Every tile in the game and how many there are. Tiles turn around, so a left turn can also point the other way.</p>' + tileGrid());
   }
