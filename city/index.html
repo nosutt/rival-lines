@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-2054";
+window.RL_BUILD = "20261124-2124";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -228,12 +228,59 @@ body.city .sheet .btn.primary { background: #f7c96d; }
 body.city table.res th, body.city table.res td { border-bottom-color: rgba(47, 38, 32, .2); }
 body.city #market .mlabel { font-weight: 400; }
 
+/* ---- layout: the board is the main thing ---- */
+body.city #top { grid-template-columns: auto minmax(0, 1fr) auto; padding: 5px 10px; gap: 8px; }
+body.city #title { font-size: 20px; }
+body.city #topbtns { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
+body.city #topbtns .btn { min-height: 32px; padding: 3px 10px; font-size: 15px; border-radius: 11px 9px 12px 8px; box-shadow: 1px 2px 0 rgba(47, 38, 32, .22); }
+body.city #topbtns .toggle { min-height: 32px; padding: 3px 4px; font-size: 14px; gap: 4px; }
+body.city #topbtns .toggle input { width: 16px; height: 16px; }
+body.city #tray { padding: 5px 10px 7px; gap: 5px; }
+body.city #status { min-height: 0; font-size: 15px; line-height: 1.25; }
+body.city #hand { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; max-width: 640px; }
+body.city .tilebtn { max-width: 88px; }
+body.city #market { gap: 5px; }
+body.city #market .tilebtn { width: 66px; max-width: 66px; }
+body.city #market .btn { min-height: 32px; padding: 3px 10px; font-size: 15px; }
+body.city #market .mlabel { font-size: 14px; }
+body.city #actions { flex-wrap: nowrap; gap: 6px; }
+body.city #actions .btn { min-height: 36px; padding: 4px 10px; font-size: 16px; white-space: nowrap; flex: 0 1 auto; }
+body.city #zoom { top: auto; bottom: 10px; right: 10px; flex-direction: row; gap: 5px; }
+body.city #zoom button { width: 34px; height: 34px; font-size: 18px; border-radius: 10px; }
+body.city #zoom #zfit { width: auto; padding: 0 8px; font-size: 13px; }
+@media (max-width: 620px) {
+  body.city #top { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "mid btns" "chips chips"; row-gap: 4px; }
+  body.city #mid { grid-area: mid; } body.city #chips { grid-area: chips; justify-content: flex-start; } body.city #topbtns { grid-area: btns; }
+  body.city #topbtns .btn { padding: 3px 8px; font-size: 14px; }
+  body.city #topbtns .toggle { font-size: 13px; }
+  body.city #title { font-size: 17px; }
+  body.city #bag, body.city #ver { font-size: 11px !important; }
+  body.city #actions .btn { min-height: 34px; padding: 3px 8px; font-size: 15px; }
+  body.city #market .tilebtn { width: 54px; max-width: 54px; }
+  body.city .chip { padding: 2px 7px 2px 4px; }
+}
+@media (max-width: 380px) { body.city #topbtns .toggle { display: none; } }
+body.city #mid { min-width: 0; white-space: nowrap; }
+body.city #bag { white-space: nowrap; }
+@media (max-width: 620px) {
+  body.city #ver { display: none; }
+  body.city #chips { flex-wrap: nowrap; overflow-x: auto; gap: 4px; }
+  body.city .chip .nm { font-size: 14px; }
+  body.city .chip .pts { font-size: 18px; min-width: 1em; }
+  body.city .chip .sw { height: 20px; width: 10px; }
+  body.city #status { font-size: 14px; }
+}
+@media (max-width: 620px) {
+  body.city #mid { display: block; overflow: hidden; }
+  body.city #title { line-height: 1; }
+}
+
 </style>
 </head>
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2054</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2124</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -1430,6 +1477,13 @@ body.city #market .mlabel { font-weight: 400; }
     svg.insertAdjacentHTML('afterbegin', defs + '</defs>');
     viewG.insertAdjacentHTML('afterbegin', '<g id="bg"></g>');
     BACK = wc(BACK);
+    // the board comes first: game controls move up to the top bar, the tray gets slim
+    var tb = document.createElement('div'); tb.id = 'topbtns';
+    ['rulesBtn', 'restart'].forEach(function (id) { var b = $(id); if (b) tb.appendChild(b); });
+    ['anim', 'snd'].forEach(function (id) { var l = document.querySelector('label[for="' + id + '"]'); if (l) tb.appendChild(l); });
+    var lb = document.querySelector('label[for="anim"]'); if (lb) lb.lastChild.textContent = ' Motion';
+    $('top').appendChild(tb);
+    try { new ResizeObserver(function () { if (S) fit(true, true); }).observe(wrap); } catch (e) { /* older browsers: window resize still refits */ }
   }
 
   var bgKey = '';
@@ -1606,7 +1660,7 @@ body.city #market .mlabel { font-weight: 400; }
 
   // ------------------------------------------------------------ board
   function applyView() { viewG.setAttribute('transform', 'translate(' + view.tx.toFixed(2) + ' ' + view.ty.toFixed(2) + ') scale(' + view.s.toFixed(4) + ')'); }
-  function bounds() { var X = E.extent(); if (X) return CITY ? { x0: X.x0 - .7, y0: X.y0 - 1.05, x1: X.x1 + 1.7, y1: X.y1 + 1.85 } : { x0: X.x0 - .35, y0: X.y0 - .5, x1: X.x1 + 1.35, y1: X.y1 + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
+  function bounds() { var X = E.extent(); if (X) return CITY ? (wrap.clientWidth < 640 ? { x0: X.x0 - .08, y0: X.y0 - .5, x1: X.x1 + 1.08, y1: X.y1 + 1.5 } : { x0: X.x0 - .7, y0: X.y0 - 1.05, x1: X.x1 + 1.7, y1: X.y1 + 1.85 }) : { x0: X.x0 - .35, y0: X.y0 - .5, x1: X.x1 + 1.35, y1: X.y1 + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
   function fitTarget() {
     var r = wrap.getBoundingClientRect(), b = bounds(), bw = (b.x1 - b.x0) * W, bh = (b.y1 - b.y0) * H;
     var s = Math.max(0.26, Math.min(1.25, Math.min((r.width - 8) / bw, (r.height - 8) / bh)));
@@ -1867,7 +1921,7 @@ body.city #market .mlabel { font-weight: 400; }
   }
   function says2(ev) { var e2 = Object.assign({}, ev, { marks: null, express: 0, first: 0, expressLine: false }); return says(e2); }
   function note(ev) { if (ev.type === 'take' && ev.player === viewP) return; feed.push({ p: ev.player, t: says(ev) }); if (feed.length > 16) feed.shift(); }
-  function sinceLast(p) { var i = feed.length - 1; while (i >= 0 && feed[i].p !== p) i--; return feed.slice(i + 1).map(function (f) { return f.t; }).join(' '); }
+  function sinceLast(p) { var i = feed.length - 1; while (i >= 0 && feed[i].p !== p) i--; var got = feed.slice(i + 1); if (CITY) got = got.filter(function (f) { return f.t.indexOf('face-up tile') < 0; }).slice(-2); return got.map(function (f) { return f.t; }).join(' '); }
 
   // ------------------------------------------------------------ turns
   function computeMoves() {
