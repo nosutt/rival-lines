@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-1937";
+window.RL_BUILD = "20261124-2000";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -232,7 +232,7 @@ body.city #market .mlabel { font-weight: 400; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-1937</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2000</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -350,13 +350,13 @@ body.city #market .mlabel { font-weight: 400; }
         var c = stack.pop(); line.cells.push(c); line.track++;
         if (c.br) line.frozen = true;
         if (c.t === 'penn') line.hasPenn = true; else line.body++;
+        if (c.mk) { line.platforms += c.mk; line.marks = (line.marks || 0) + c.mk; }
         for (var d = 0; d < 4; d++) {
           var a = edgeOf(c.t, c.rot, d);
           if (a !== 't' && a !== 'x') continue;
           var nx = c.x + DX[d], ny = c.y + DY[d], nk = key(nx, ny), n = board.get(nk);
           if (!n) { if (a === 't') { if (outside(nx, ny)) { line.platforms++; line.walls = (line.walls || 0) + 1; } else line.loose.push({ x: c.x, y: c.y, d: d }); } continue; }
           var b = edgeOf(n.t, n.rot, opp(d));
-          if (LANDMARKS && a === 't' && isObs(n)) { line.platforms++; line.marks = (line.marks || 0) + 1; continue; }
           if (b === 't' || b === 'x') { if (!lineOf.has(nk)) { lineOf.set(nk, line.id); stack.push(n); } }
           else if (b === 'p') { line.platforms++; line.caps.push({ x: nx, y: ny, d: opp(d) }); }
         }
@@ -380,7 +380,7 @@ body.city #market .mlabel { font-weight: 400; }
       if (DEFS[n.t].kind !== 'obstacle') hasNb = true;
       a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d));
       L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
-      if (LANDMARKS && isObs(n)) { if (a === '.') continue; if ((a === 't' || a === 'x') && !markTaken(board, n, x, y)) continue; return null; }
+      if (LANDMARKS && isObs(n)) { if (a === '.') continue; return null; }
       if (a === '.') { if (b === '.' || b === 'x') continue; return null; }
       if (a === 't') {
         if (b === 't' || b === 'x') {
@@ -415,6 +415,7 @@ body.city #market .mlabel { font-weight: 400; }
     }
     var nb = new Map(board), taken = [];
     var entry = { t: t, rot: rot ? 1 : 0, x: x, y: y, o: track ? P : -1, br: 0, im: 0, lk: 0, lb: null };
+    if (LANDMARKS && track) for (d = 0; d < 4; d++) { n = board.get(key(x + DX[d], y + DY[d])); if (isObs(n) && !(S.claims && S.claims[key(n.x, n.y)] !== undefined)) { entry.mk = (entry.mk || 0) + 1; (entry.mkd = entry.mkd || []).push(d); } }
     nb.set(k, entry);
     if (track) {
       for (i = 0; i < merge.length; i++) {
@@ -476,8 +477,7 @@ body.city #market .mlabel { font-weight: 400; }
     for (d = 0; d < 4; d++) {
       n = S.board.get(key(x + DX[d], y + DY[d])); if (!n) continue;
       if (DEFS[n.t].kind !== 'obstacle') hasNb = true; a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d)); L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
-      if (LANDMARKS && isObs(n) && (a === 't' || a === 'x') && markTaken(S.board, n, x, y)) return 'Someone already reached the ' + n.t + ' on the ' + SIDE[d] + '. A landmark takes only one connection.';
-      if (DEFS[n.t].kind === 'obstacle' && a !== '.' && !(LANDMARKS && a !== 'p')) return (LANDMARKS ? 'A station cannot face the ' : 'Track and stations cannot run into the ') + n.t + ' on the ' + SIDE[d] + '.';
+      if (DEFS[n.t].kind === 'obstacle' && a !== '.') return 'Track and stations cannot run into the ' + n.t + ' on the ' + SIDE[d] + '. Lay track alongside it instead.';
       if (DEFS[n.t].kind === 'obstacle') continue;
       if (a === '.') { if (b === '.' || b === 'x') continue; return (b === 'p' ? 'A station' : 'Track') + ' on the ' + SIDE[d] + ' points into this space, and your tile is blank on that side.'; }
       if (a === 'p' && b === 'p') return 'Your station would face another station on the ' + SIDE[d] + '. Stations need track between them.';
@@ -586,10 +586,11 @@ body.city #market .mlabel { font-weight: 400; }
     if (m.type === 'sabotage') ev.frozen = { owner: res.line.owner, track: res.line.track };
     S.board = res.board;
     ev.marks = [];
-    if (S.rules && S.rules.landmarks && m.type === 'place' && hasTrack(t)) for (var dl = 0; dl < 4; dl++) {
-      var nb = S.board.get(key(m.x + DX[dl], m.y + DY[dl])), ae = edgeOf(t, m.rot || 0, dl);
-      if (nb && isObs(nb) && (ae === 't') && S.claims[key(nb.x, nb.y)] === undefined) { S.claims[key(nb.x, nb.y)] = P; addBonus(S, P, 'landmark', 3); ev.marks.push([nb.x, nb.y]); }
-    }
+    var placed = S.board.get(key(m.x, m.y));
+    if (S.rules && S.rules.landmarks && m.type === 'place' && placed && placed.mkd) placed.mkd.forEach(function (dl) {
+      var nb = S.board.get(key(m.x + DX[dl], m.y + DY[dl]));
+      if (nb && S.claims[key(nb.x, nb.y)] === undefined) { S.claims[key(nb.x, nb.y)] = P; addBonus(S, P, 'landmark', 3); ev.marks.push([nb.x, nb.y]); }
+    });
     var firstNow = S.rules && S.rules.first && S.lines.length === 0;
     res.finished.forEach(function (L) {
       var pts = lineValue(L), lb = label(S, P), who = L.owner >= 0 ? L.owner : P;
@@ -908,7 +909,7 @@ body.city #market .mlabel { font-weight: 400; }
     var v = { seed: (e.x * 73856093) ^ (e.y * 19349663) ^ 0x5bd1e995, t: e.t, rot: e.rot, col: own >= 0 ? COL[own] : NEUTRAL, lock: locked && own >= 0 ? PALE[own] : null, broken: !!e.br, frozen: !!(L && L.frozen), plat: [null, null, null, null], gold: [false, false, false, false], penn: null };
     if (E.DEFS[e.t].kind === 'obstacle') {
       v.claim = S && S.claims && S.claims[k] !== undefined ? S.claims[k] : -1;
-      for (var dd = 0; dd < 4; dd++) { var nn = board.get(E.key(e.x + E.DX[dd], e.y + E.DY[dd])); if (nn && E.hasTrack(nn.t) && E.edgeOf(nn.t, nn.rot, E.opp(dd)) === 't') { var ll = E.lineAt(an, nn.x, nn.y); v.plat[dd] = ll && ll.frozen ? FROZEN : COL[ovOwner && ovOwner.has(E.key(nn.x, nn.y)) ? ovOwner.get(E.key(nn.x, nn.y)) : nn.o]; } }
+      for (var dd = 0; dd < 4; dd++) { var nn = board.get(E.key(e.x + E.DX[dd], e.y + E.DY[dd])); if (nn && E.hasTrack(nn.t) && nn.mkd && nn.mkd.indexOf(E.opp(dd)) >= 0) { var ll = E.lineAt(an, nn.x, nn.y); v.plat[dd] = ll && ll.frozen ? FROZEN : COL[ovOwner && ovOwner.has(E.key(nn.x, nn.y)) ? ovOwner.get(E.key(nn.x, nn.y)) : nn.o]; } }
       return v;
     }
     for (var d = 0; d < 4; d++) {
@@ -942,7 +943,7 @@ body.city #market .mlabel { font-weight: 400; }
   var WCMAP = { '#cfe8f3': '#dcedf1', '#cfe3b8': '#e4edc9', '#ece4d4': '#f3e7d3', '#b9c3c8': '#9a8775', '#4ea8de': '#7fc0e4', '#2a6f97': '#2f2620', '#cfeaf7': '#f6fbfd',
     '#e9dcc0': '#efd8ad', '#d8ccb4': '#eab892', '#9c8f74': '#2f2620', '#f1e9d6': '#f6d7aa', '#6b705c': '#2f2620', '#e3d7bd': '#f0a98a', '#b7ab8f': '#c98a64', '#c3ccd1': '#a8937c',
     '#7d8597': '#a3bbb5', '#6c757d': '#8eaba5', '#8d99ae': '#b8cbc2', '#4a4e69': '#2f2620', '#5c677d': '#86a099', '#f8f9fa': '#fdfaf3',
-    '#1d2731': '#5a4740', '#0b1217': '#2f2620', '#c2cad2': '#ddd3c4', '#d9a400': '#cf8f2e', '#e9b200': '#efb54b', '#b5bec6': '#bfb09c', '#16444d': '#c8694a', '#0a2a31': '#2f2620', '#2c6570': '#f1c9a3' };
+    '#1d2731': '#5a4740', '#0b1217': '#2f2620', '#c2cad2': '#ddd3c4', '#d9a400': '#cf8f2e', '#e9b200': '#efb54b', '#b5bec6': '#bfb09c', '#16444d': '#c8694a', '#0a2a31': '#2f2620', '#2c6570': '#f1c9a3', '#343a40': '#2f2620' };
   function wc(s) { return CITY ? s.replace(/#[0-9a-fA-F]{6}\b/g, function (m) { return WCMAP[m.toLowerCase()] || m; }).replace(/"#fff"/g, '"#fffaf2"') : s; }
   var WC_WALL = ['#f2a68c', '#f7cf74', '#93d2c8', '#f5b9c4', '#ec9461', '#f3dfa8', '#b9d98a'], WC_ROOF = ['#d9534f', '#4f9a5a', '#a0644a', '#e0803c', '#5aa3b8'];
   function wcBuilding(x, y, w, h, r) {
@@ -1030,7 +1031,9 @@ body.city #market .mlabel { font-weight: 400; }
       var quad = function (a, m, b) { for (var s = 0; s <= 16; s++) { var t = s / 16, u = 1 - t; add([u * u * a[0] + 2 * u * t * m[0] + t * t * b[0], u * u * a[1] + 2 * u * t * m[1] + t * t * b[1]]); } };
       var edgePt = function (c, d, ext) { return [c.x * W + EP[d][0] + E.DX[d] * (ext || 0), c.y * H + EP[d][1] + E.DY[d] * (ext || 0)]; };
       if (A.d !== null) seg(edgePt(A.c, A.d, A.ext), edgePt(A.c, A.d, 0));
+      var stopIdx = [];
       for (var k = 0; k < path.length; k++) {
+        var i0 = pts.length;
         var c = path[k], din = k === 0 ? A.d : dirTo(c, path[k - 1]), dout = k === path.length - 1 ? B.d : dirTo(c, path[k + 1]), C = [c.x * W + CX, c.y * H + CY], opens = 0;
         for (var dd = 0; dd < 4; dd++) if (open(c, dd)) opens++;
         if (din === null && dout === null) add(C);
@@ -1039,10 +1042,11 @@ body.city #market .mlabel { font-weight: 400; }
         else if (((din + 2) & 3) === dout) seg(edgePt(c, din), edgePt(c, dout));
         else if (opens === 2) quad(edgePt(c, din), C, edgePt(c, dout));
         else { seg(edgePt(c, din), C); seg(C, edgePt(c, dout)); }
+        if (c.mk) stopIdx.push(Math.min(pts.length - 1, Math.floor((i0 + pts.length - 1) / 2)));
       }
       if (B.d !== null) seg(edgePt(B.c, B.d, 0), edgePt(B.c, B.d, B.ext));
       var cum = [0]; for (var q2 = 1; q2 < pts.length; q2++) cum.push(cum[q2 - 1] + Math.hypot(pts[q2][0] - pts[q2 - 1][0], pts[q2][1] - pts[q2 - 1][1]));
-      if (cum[cum.length - 1] > 20) routes.push({ p: pts, cum: cum, len: cum[cum.length - 1] });
+      if (cum[cum.length - 1] > 20) routes.push({ p: pts, cum: cum, len: cum[cum.length - 1], stops: stopIdx.map(function (ix) { return cum[ix]; }) });
     }
     return routes;
   }
@@ -1075,7 +1079,11 @@ body.city #market .mlabel { font-weight: 400; }
       if (!T.cars) return;
       if (!animOn) { T.cars.forEach(function (c) { c.setAttribute('opacity', '0'); }); return; }
       if (T.wait > 0) { T.wait -= dt; return; }
-      var R = T.routes[T.i], GAP = 14.5, FADE = 15; T.s += dt * .06;
+      var R = T.routes[T.i], GAP = 14.5, FADE = 15, was = T.s; T.s += dt * .06;
+      for (var si = 0; si < R.stops.length; si++) { // a short stop at each landmark station on the way
+        var st = T.dir > 0 ? R.stops[si] : R.len - R.stops[si];
+        if (was < st && T.s >= st) { T.s = st; T.wait = 900; break; }
+      }
       for (var k = 0; k < T.cars.length; k++) {
         var pos = T.s - k * GAP, el = T.cars[k];
         if (pos <= 0 || pos >= R.len) { el.setAttribute('opacity', '0'); continue; }
@@ -1146,7 +1154,7 @@ body.city #market .mlabel { font-weight: 400; }
 
   // ------------------------------------------------------------ board
   function applyView() { viewG.setAttribute('transform', 'translate(' + view.tx.toFixed(2) + ' ' + view.ty.toFixed(2) + ') scale(' + view.s.toFixed(4) + ')'); }
-  function bounds() { var X = E.extent(); if (X) return { x0: X.x0 - .35, y0: X.y0 - .5, x1: X.x1 + 1.35, y1: X.y1 + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
+  function bounds() { var X = E.extent(); if (X) return CITY ? { x0: X.x0 - .7, y0: X.y0 - 1.05, x1: X.x1 + 1.7, y1: X.y1 + 1.85 } : { x0: X.x0 - .35, y0: X.y0 - .5, x1: X.x1 + 1.35, y1: X.y1 + 1.5 }; var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; S.board.forEach(function (e) { x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x); y1 = Math.max(y1, e.y); }); return { x0: x0 - 1, y0: y0 - 1, x1: x1 + 2, y1: y1 + 2 }; }
   function fitTarget() {
     var r = wrap.getBoundingClientRect(), b = bounds(), bw = (b.x1 - b.x0) * W, bh = (b.y1 - b.y0) * H;
     var s = Math.max(0.26, Math.min(1.25, Math.min((r.width - 8) / bw, (r.height - 8) / bh)));
@@ -1227,6 +1235,44 @@ body.city #market .mlabel { font-weight: 400; }
   }
   function myTurn() { return !!S && !S.over && !ui.busy && !ui.cover && S.turn === viewP && !isBot(viewP); }
   function canPlan() { return !!S && started && !S.over && !ui.cover && !isBot(viewP) && cfg.seats[viewP] !== 'remote' && !!S.hands[viewP]; }
+  // city mountains: soft green hills with snowy caps, ink outlines and little pines, standing upright outside the walls
+  function wcMountain(x, y, w, h, r) {
+    var g = ['#b9d85c', '#a8cf52', '#c8de6c', '#9fc94f'][Math.floor(r() * 4)], ik = ' stroke="' + INK + '" stroke-width="1.3" stroke-linejoin="round"', s = '', f = function (v) { return v.toFixed(1); };
+    var tilt = (r() - .5) * w * .25, px = x + tilt, py = y - h;
+    var body = 'M' + f(x - w / 2) + ' ' + f(y) + ' C' + f(x - w * .3) + ' ' + f(y - h * .45) + ' ' + f(px - w * .14) + ' ' + f(py) + ' ' + f(px) + ' ' + f(py) + ' C' + f(px + w * .14) + ' ' + f(py) + ' ' + f(x + w * .3) + ' ' + f(y - h * .45) + ' ' + f(x + w / 2) + ' ' + f(y) + ' Z';
+    s += '<path d="' + body + '" fill="' + g + '" fill-opacity=".95"' + ik + '/>';
+    s += '<path d="M' + f(px) + ' ' + f(py) + ' C' + f(px + w * .14) + ' ' + f(py) + ' ' + f(x + w * .3) + ' ' + f(y - h * .45) + ' ' + f(x + w / 2) + ' ' + f(y) + ' L' + f(x + w * .1) + ' ' + f(y) + ' C' + f(x + w * .14) + ' ' + f(y - h * .4) + ' ' + f(px + w * .05) + ' ' + f(py + h * .3) + ' ' + f(px) + ' ' + f(py) + ' Z" fill="#4f7d2a" fill-opacity=".22"/>';
+    var yc = py + h * (.26 + r() * .1), xl = px - w * .2, xr = px + w * .2;
+    var cap = 'M' + f(xl) + ' ' + f(yc) + ' C' + f(xl + w * .06) + ' ' + f(py + h * .06) + ' ' + f(px - w * .1) + ' ' + f(py - 1) + ' ' + f(px) + ' ' + f(py - 1) + ' C' + f(px + w * .1) + ' ' + f(py - 1) + ' ' + f(xr - w * .06) + ' ' + f(py + h * .06) + ' ' + f(xr) + ' ' + f(yc) +
+      ' Q' + f(xr - w * .05) + ' ' + f(yc + 4) + ' ' + f(xr - w * .12) + ' ' + f(yc + 1) + ' Q' + f(px) + ' ' + f(yc + 6) + ' ' + f(px - w * .08) + ' ' + f(yc + 1) + ' Q' + f(xl + w * .06) + ' ' + f(yc + 5) + ' ' + f(xl) + ' ' + f(yc) + ' Z';
+    s += '<path d="M' + f(px + w * .02) + ' ' + f(py + 2) + ' Q' + f(xr) + ' ' + f(yc - 1) + ' ' + f(xr + w * .04) + ' ' + f(yc + 3) + ' Q' + f(px + w * .05) + ' ' + f(yc + 6) + ' ' + f(px + w * .02) + ' ' + f(py + 2) + ' Z" fill="#d79a62" fill-opacity=".75"/>';
+    s += '<path d="' + cap + '" fill="#fffaf2" stroke="' + INK + '" stroke-width="1.1" stroke-linejoin="round"/>';
+    if (r() < .3) s += '<circle cx="' + f(px - 2.4) + '" cy="' + f(yc - 2) + '" r=".9" fill="' + INK + '"/><circle cx="' + f(px + 2.4) + '" cy="' + f(yc - 2) + '" r=".9" fill="' + INK + '"/>';
+    return s;
+  }
+  function wcPine(x, y, sz) { return '<path d="M' + x.toFixed(1) + ' ' + (y - sz * 2.2).toFixed(1) + ' L' + (x + sz).toFixed(1) + ' ' + y.toFixed(1) + ' L' + (x - sz).toFixed(1) + ' ' + y.toFixed(1) + ' Z" fill="#3f7a3a" stroke="' + INK + '" stroke-width=".5" stroke-linejoin="round"/><path d="M' + x.toFixed(1) + ' ' + y.toFixed(1) + ' v1.6" stroke="#6b4a2f" stroke-width=".8"/>'; }
+  function wcBorder(cells, r) {
+    var band = '', items = [];
+    cells.forEach(function (c) {
+      var x0 = c[0] * W, y0 = c[1] * H;
+      [[0, -1, x0, y0, x0 + W, y0], [0, 1, x0, y0 + H, x0 + W, y0 + H], [-1, 0, x0, y0, x0, y0 + H], [1, 0, x0 + W, y0, x0 + W, y0 + H]].forEach(function (q) {
+        if (!E.outside(c[0] + q[0], c[1] + q[1])) return;
+        var nx = q[0], ny = q[1];
+        band += '<line x1="' + (q[2] + nx * 36) + '" y1="' + (q[3] + ny * 36) + '" x2="' + (q[4] + nx * 36) + '" y2="' + (q[5] + ny * 36) + '" stroke="#cfe38a" stroke-opacity=".55" stroke-width="76" stroke-linecap="round"/>';
+        var len = Math.hypot(q[4] - q[2], q[5] - q[3]), ux = (q[4] - q[2]) / len, uy = (q[5] - q[3]) / len;
+        for (var t = 10; t < len; t += (ny ? 30 : 27) + r() * 12) {
+          var w = 46 + r() * 26, h = 30 + r() * 22, ex = q[2] + ux * t, ey = q[3] + uy * t, bx, by;
+          if (ny < 0) { bx = ex; by = ey - 2 - r() * 6; }
+          else if (ny > 0) { bx = ex; by = ey + h * .8 + r() * 6; }
+          else { bx = ex + nx * (w * .45 + r() * 6); by = ey + h * .45; }
+          items.push({ y: by, s: wcMountain(bx, by, w, h, r) });
+          for (var pi = 0; pi < 2; pi++) if (r() < .7) { var tx = bx + (r() - .5) * w * 1.1, ty = by + 2 + r() * 9; if (!(ny > 0 && ty < ey + 4)) items.push({ y: ty, s: wcPine(tx, ty, 2 + r() * 1.4) }); }
+        }
+      });
+    });
+    items.sort(function (a, b) { return a.y - b.y; });
+    return band + items.map(function (i) { return i.s; }).join('');
+  }
   function borderSvg() {
     var X = E.extent(); if (!X) return '';
     var s = '', r = srand(4242), cells = [], x, y;
@@ -1245,6 +1291,7 @@ body.city #market .mlabel { font-weight: 400; }
       return out;
     }
     var floor = '', ridge = '', peaks = '';
+    if (CITY) { peaks = wcBorder(cells, r); cells = []; }
     cells.forEach(function (c) {
       var x0 = c[0] * W, y0 = c[1] * H;
       floor += '<rect x="' + (x0 + 1) + '" y="' + (y0 + 1) + '" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="6" fill="rgba(255,255,255,.05)"/>';
@@ -1353,7 +1400,7 @@ body.city #market .mlabel { font-weight: 400; }
   function says(ev) {
     var B = tag(ev.player) + ' ', f, k;
     if (ev.type === 'take') return B + (ev.blind ? 'drew blind.' : 'took a face-up tile.');
-    var extra = (ev.marks && ev.marks.length ? ' Reached a landmark first: <b class="hi">+3</b>.' : '') + (ev.express ? ' Express: <b class="hi">+' + ev.express + '</b>.' : '') + (ev.first ? ' First line finished: <b class="hi">+3</b>.' : '');
+    var extra = (ev.marks && ev.marks.length ? ' Built a landmark station: <b class="hi">+3</b>.' : '') + (ev.express ? ' Express: <b class="hi">+' + ev.express + '</b>.' : '') + (ev.first ? ' First line finished: <b class="hi">+3</b>.' : '');
     if (extra && ev.type !== 'swap' && ev.type !== 'pass') return says2(ev) + extra;
     if (ev.type === 'swap') return B + 'traded in tiles.';
     if (ev.type === 'pass') return B + 'passed.';
@@ -1517,7 +1564,7 @@ body.city #market .mlabel { font-weight: 400; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (CITY ? '<li><b>Landmarks:</b> only the first track to reach a park, lake or arch may connect to it. A station appears there and caps that end, and that player scores +3 at once and keeps it. After that, no other track may run into it.</li><li><b>Bonuses:</b> +5 for a finished line with tunnels on two different mountain faces (an express). +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind.</li>' : '') +
+    (CITY ? '<li><b>Landmarks:</b> track can never run into a park, lake or arch. Lay track alongside one instead: the first track tile laid next to it gets a station there. That player scores +3 at once and keeps it, and the station counts for the line that runs past it, without closing the line. Each landmark has only one station.</li><li><b>Bonuses:</b> +5 for a finished line with tunnels on two different mountain faces (an express). +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind.</li>' : '') +
     (MAP ? '<li><b>The mountains:</b> the board is a 7 by 7 rectangle or a random shape, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li>' + (CITY ? '' : '<li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>') : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
