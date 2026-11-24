@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-2036";
+window.RL_BUILD = "20261124-2054";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -233,7 +233,7 @@ body.city #market .mlabel { font-weight: 400; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2036</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2054</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -1107,16 +1107,17 @@ body.city #market .mlabel { font-weight: 400; }
   function background(spec) {
     var r = rng(spec.seed), W = spec.W, H = spec.H, x0 = spec.x0, y0 = spec.y0, x1 = spec.x1, y1 = spec.y1;
     var R = Math.min(2, Math.sqrt(4.2e6 / ((x1 - x0) * (y1 - y0)))), c = canvas((x1 - x0) * R, (y1 - y0) * R), g = c.getContext('2d');
-    fillPaper(g, c.width, c.height, Math.max(.8, R * .55));
+    // no paper here: the paint sits straight on the page's paper, so the picture has no edge of its own
     var P = new Painter(c, R, x0, y0, spec.seed + 1), cells = spec.cells, inside = {};
     cells.forEach(function (q) { inside[q[0] + ',' + q[1]] = 1; });
     var bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9; cells.forEach(function (q) { bx0 = Math.min(bx0, q[0] * W); by0 = Math.min(by0, q[1] * H); bx1 = Math.max(bx1, q[0] * W + W); by1 = Math.max(by1, q[1] * H + H); });
     // this game's stain: a broad soft bloom and a deeper blot with a hard, cauliflowered edge
     var hue = STAINS[Math.floor(r() * STAINS.length)], bw = bx1 - bx0, bh = by1 - by0;
-    var sx = bx0 + bw * (.2 + r() * .6), sy = by0 + bh * (.2 + r() * .6);
+    var sx = bx0 + bw * (.3 + r() * .4), sy = by0 + bh * (.3 + r() * .4), lim = function (v, c0, c1) { return Math.max(20, Math.min(v, cc - c0 - 70, c1 - cc - 70)); }, cc;
     var kx = bx0 + bw * (r() < .5 ? .08 + r() * .2 : .72 + r() * .2), ky = by0 + bh * (.1 + r() * .8);
     softLayer(c, R, x0, y0, spec.seed + 3, function (S2) {
-      S2.wash(ellipse(sx, sy, bw * (.42 + r() * .2), bh * (.42 + r() * .2), 16, r, .18), hue, { layers: 18, a: .02, spread: 30, edge: .012, edgeW: 3, grain: false });
+      cc = sx; var rxA = lim(bw * (.42 + r() * .2), x0, x1); cc = sy; var ryA = lim(bh * (.42 + r() * .2), y0, y1);
+      S2.wash(ellipse(sx, sy, rxA, ryA, 16, r, .18), hue, { layers: 18, a: .02, spread: 30, edge: .012, edgeW: 3, grain: false });
       S2.wash(ellipse(sx + bw * (r() - .5) * .5, sy + bh * (r() - .5) * .5, bw * .26, bh * .24, 14, r, .2), hue, { layers: 14, a: .028, spread: 22, edge: .02, edgeW: 2, grain: false });
       S2.wash(ellipse(kx, ky, 34 + r() * 20, 30 + r() * 18, 16, r, .22), hue, { layers: 16, a: .05, spread: 9, edge: .07, edgeW: 1.4, grain: false });
     });
@@ -1125,12 +1126,20 @@ body.city #market .mlabel { font-weight: 400; }
     var LK = .25, land = canvas(c.width * LK, c.height * LK), lg = land.getContext('2d'), LP = new Painter(land, R * LK, x0, y0, spec.seed + 2); LP.gs = 1e9;
     LP.wash(rect(x0 - 20, y0 - 20, x1 - x0 + 40, y1 - y0 + 40), '#b7d567', { layers: 8, a: .1, spread: 12, edge: 0, mode: 'source-over', grain: false });
     for (var pp = 0; pp < 16; pp++) LP.wash(ellipse(x0 + r() * (x1 - x0), y0 + r() * (y1 - y0), 40 + r() * 70, 25 + r() * 45, 12, r, .25), pick(r, ['#8fbf4a', '#d2df78', '#a3cb57']), { layers: 6, a: .06, spread: 10, edge: 0, mode: 'source-over', grain: false });
-    var R0 = R; R = R * LK;
-    lg.save(); lg.globalCompositeOperation = 'destination-in'; lg.setTransform(R, 0, 0, R, -x0 * R, -y0 * R);
-    var keep = new Path2D(); cells.forEach(function (q) { var e = 70 + r() * 26; keep.rect(q[0] * W - e, q[1] * H - e, W + e * 2, H + e * 2); });
-    lg.fillStyle = '#000'; lg.shadowColor = '#000'; lg.shadowBlur = 34 * R; lg.fill(keep); lg.restore();
-    lg.save(); lg.globalCompositeOperation = 'destination-out'; lg.setTransform(R, 0, 0, R, -x0 * R, -y0 * R); cells.forEach(function (q) { lg.fillRect(q[0] * W - 1, q[1] * H - 1, W + 2, H + 2); }); lg.restore();
-    R = R0;
+    // keep the land only near the walls: a ring of overlapping irregular blobs, so its outer edge is soft and natural
+    var mk = canvas(land.width, land.height), MP = new Painter(mk, R * LK, x0, y0, spec.seed + 4);
+    cells.forEach(function (q) {
+      [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(function (d) {
+        if (inside[(q[0] + d[0]) + ',' + (q[1] + d[1])]) return;
+        var cx = q[0] * W + W / 2 + d[0] * (W / 2 + 30), cy = q[1] * H + H / 2 + d[1] * (H / 2 + 30);
+        for (var b = 0; b < 2; b++) MP.fill(ellipse(cx + gauss(r) * 18, cy + gauss(r) * 14, 62 + r() * 30, 52 + r() * 26, 16, r, .2), '#000000', 1, 9);
+      });
+    });
+    lg.save(); lg.globalCompositeOperation = 'destination-in'; lg.drawImage(mk, 0, 0); lg.restore();
+    // and clear it from the board, along a wobbly line rather than the cells' straight edges
+    lg.save(); lg.globalCompositeOperation = 'destination-out';
+    cells.forEach(function (q) { LP.fill(rect(q[0] * W - 6, q[1] * H - 6, W + 12, H + 12), '#000000', 1, 5); });
+    lg.restore();
     var lf = canvas(c.width, c.height), lfg = lf.getContext('2d'); lfg.drawImage(land, 0, 0, c.width, c.height);
     lfg.globalCompositeOperation = 'destination-in'; var gs2 = Math.max(.6, R * .42); lfg.setTransform(gs2, 0, 0, gs2, 0, 0); lfg.fillStyle = lfg.createPattern(grainMask(), 'repeat'); lfg.fillRect(0, 0, c.width / gs2 + 1, c.height / gs2 + 1);
     g.save(); g.globalCompositeOperation = 'multiply'; g.drawImage(lf, 0, 0); g.restore();
@@ -1160,6 +1169,12 @@ body.city #market .mlabel { font-weight: 400; }
       else if (side === 2) { cxp = bx0 - 55 - r() * 20; cyp = by0 + r() * bh; } else { cxp = bx1 + 55 + r() * 20; cyp = by0 + r() * bh; }
       cloud(P, cxp, cyp, 36 + r() * 26, r);
     }
+    g.save(); g.globalCompositeOperation = 'destination-out'; var F = 60 * R, cw = c.width, ch = c.height, gr;
+    gr = g.createLinearGradient(0, 0, F, 0); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, F, ch);
+    gr = g.createLinearGradient(cw, 0, cw - F, 0); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(cw - F, 0, F, ch);
+    gr = g.createLinearGradient(0, 0, 0, F); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, cw, F);
+    gr = g.createLinearGradient(0, ch, 0, ch - F); gr.addColorStop(0, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, ch - F, cw, F);
+    g.restore();
     return { url: toURL(c), x: x0, y: y0, w: x1 - x0, h: y1 - y0, hue: hue };
   }
 
@@ -1425,7 +1440,7 @@ body.city #market .mlabel { font-weight: 400; }
     var key = S.artSeed + ':' + [X.x0, X.y0, X.x1, X.y1].join() + ':' + (S.mask ? S.mask.length : 0); if (key === bgKey) return; bgKey = key;
     var g = document.getElementById('bg'); if (!g) return;
     var cells = []; for (var x = X.x0; x <= X.x1; x++) for (var y = X.y0; y <= X.y1; y++) if (!E.outside(x, y)) cells.push([x, y]);
-    var M = 170, spec = { seed: S.artSeed, W: W, H: H, cells: cells, x0: X.x0 * W - M, y0: X.y0 * H - M, x1: (X.x1 + 1) * W + M, y1: (X.y1 + 1) * H + M };
+    var M = 230, spec = { seed: S.artSeed, W: W, H: H, cells: cells, x0: X.x0 * W - M, y0: X.y0 * H - M, x1: (X.x1 + 1) * W + M, y1: (X.y1 + 1) * H + M };
     setTimeout(function () { // paint after the board is on screen
       if (bgKey !== key) return;
       var t0 = performance.now(), b = Paint.background(spec); window.__paintMs = performance.now() - t0;
