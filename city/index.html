@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-1913";
+window.RL_BUILD = "20261124-1937";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -186,11 +186,53 @@ div.tilebtn { cursor: default; }
 #market .btn { min-height: 38px; }
 
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&amp;display=swap" rel="stylesheet">
+<style>
+/* Derail: City — watercolour and ink on rough paper */
+body.city {
+  --table: #efe5d1; --table-deep: #e9ddc6; --rail: #f4ebd9; --ink: #2f2620; --text: #2f2620; --muted: #7d6858;
+  --signal: #e9a43a; --hot: #c4601d;
+  --display: 'Patrick Hand', 'Comic Sans MS', 'Trebuchet MS', sans-serif; --body: 'Patrick Hand', 'Comic Sans MS', 'Trebuchet MS', sans-serif;
+  color-scheme: light; font-size: 17px; background-color: var(--table-deep); background-image: var(--paper);
+}
+body.city #top, body.city #tray { background-color: var(--rail); background-image: var(--paper); }
+body.city #top { border-bottom: 2px solid rgba(47, 38, 32, .55); box-shadow: 0 3px 0 rgba(47, 38, 32, .08); }
+body.city #tray { border-top: 2px solid rgba(47, 38, 32, .55); }
+body.city #boardWrap { background-color: #ece1ca; background-image: var(--paper); background-size: 256px 256px; }
+body.city #title { font-size: 24px; letter-spacing: .01em; }
+body.city #status .hi, body.city .side.turn .pts, body.city .chip.turn .pts { color: var(--hot); }
+body.city #status .y { color: #2c62b8; } body.city #status .b { color: #b9541a; }
+body.city .btn { background: #cfe5df; color: var(--ink); border: 1.6px solid var(--ink); border-radius: 15px 11px 14px 10px; box-shadow: 2px 3px 0 rgba(47, 38, 32, .22); font-weight: 400; font-size: 17px; }
+body.city .btn.primary { background: #f7c96d; color: var(--ink); }
+body.city .btn:active { transform: translate(1px, 2px); box-shadow: 1px 1px 0 rgba(47, 38, 32, .22); }
+body.city .chip { background: rgba(255, 252, 244, .55); border: 1.6px solid rgba(47, 38, 32, .3); }
+body.city .chip.turn { background: #fff4d6; border-color: var(--ink); }
+body.city .chip .sw, body.city .swatch { border-color: var(--ink); }
+body.city .chip .nm { font-weight: 400; font-size: 17px; }
+body.city .chip .pts { font-weight: 400; }
+body.city #zoom button { background: rgba(255, 250, 240, .92); color: var(--ink); border: 1.6px solid var(--ink); font-weight: 400; }
+body.city .tilebtn { filter: drop-shadow(1px 3px 0 rgba(47, 38, 32, .28)); }
+body.city .tilebtn.sel { outline-color: var(--hot); }
+body.city .toggle { color: var(--muted); }
+body.city .toggle input, body.city .opt input { accent-color: var(--hot); }
+body.city #overlay { background: rgba(70, 52, 36, .45); }
+body.city .sheet { background-color: #fbf5e7; background-image: var(--paper); border: 2px solid var(--ink); border-radius: 22px 16px 24px 18px; box-shadow: 4px 6px 0 rgba(47, 38, 32, .25); }
+body.city .sheet h1, body.city .sheet h2 { font-weight: 400; }
+body.city .sheet .sub, body.city .tilegrid small { color: #7d6858; }
+body.city .opt, body.city .seat { background: rgba(255, 253, 246, .6); border: 1px solid rgba(47, 38, 32, .22); }
+body.city .seat .sw { border-color: var(--ink); }
+body.city .seat input, body.city .seat select { border: 1.6px solid var(--ink); background: #fffdf6; color: var(--ink); }
+body.city .sheet .btn { background: #cfe5df; color: var(--ink); }
+body.city .sheet .btn.primary { background: #f7c96d; }
+body.city table.res th, body.city table.res td { border-bottom-color: rgba(47, 38, 32, .2); }
+body.city #market .mlabel { font-weight: 400; }
+
+</style>
 </head>
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-1913</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-1937</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -225,6 +267,15 @@ div.tilebtn { cursor: default; }
   var MASK = null; // a set of allowed squares, for shaped boards
   var LANDMARKS = false; // landmarks act as stations that track can run into
   function isObs(n) { return !!n && DEFS[n.t].kind === 'obstacle'; }
+  // a landmark takes one connection only: true if some tile other than the one at (ex, ey) already runs track into it
+  function markTaken(board, o, ex, ey) {
+    for (var d = 0; d < 4; d++) {
+      var nx = o.x + DX[d], ny = o.y + DY[d]; if (nx === ex && ny === ey) continue;
+      var n = board.get(nx + ',' + ny); if (!n || isObs(n)) continue;
+      var e = edgeOf(n.t, n.rot, (d + 2) & 3); if (e === 't' || e === 'x') return true;
+    }
+    return false;
+  }
   function outside(x, y) { if (MASK) return !MASK.has(x + ',' + y); return BOUND > 0 && (Math.abs(x) > BOUND || Math.abs(y) > BOUND); }
   function setBound(n) { BOUND = n || 0; }
   function setMask(arr) { MASK = arr && arr.length ? new Set(arr) : null; }
@@ -329,7 +380,7 @@ div.tilebtn { cursor: default; }
       if (DEFS[n.t].kind !== 'obstacle') hasNb = true;
       a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d));
       L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
-      if (LANDMARKS && isObs(n)) { if (a === '.' || a === 't' || a === 'x') continue; return null; }
+      if (LANDMARKS && isObs(n)) { if (a === '.') continue; if ((a === 't' || a === 'x') && !markTaken(board, n, x, y)) continue; return null; }
       if (a === '.') { if (b === '.' || b === 'x') continue; return null; }
       if (a === 't') {
         if (b === 't' || b === 'x') {
@@ -425,6 +476,7 @@ div.tilebtn { cursor: default; }
     for (d = 0; d < 4; d++) {
       n = S.board.get(key(x + DX[d], y + DY[d])); if (!n) continue;
       if (DEFS[n.t].kind !== 'obstacle') hasNb = true; a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d)); L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
+      if (LANDMARKS && isObs(n) && (a === 't' || a === 'x') && markTaken(S.board, n, x, y)) return 'Someone already reached the ' + n.t + ' on the ' + SIDE[d] + '. A landmark takes only one connection.';
       if (DEFS[n.t].kind === 'obstacle' && a !== '.' && !(LANDMARKS && a !== 'p')) return (LANDMARKS ? 'A station cannot face the ' : 'Track and stations cannot run into the ') + n.t + ' on the ' + SIDE[d] + '.';
       if (DEFS[n.t].kind === 'obstacle') continue;
       if (a === '.') { if (b === '.' || b === 'x') continue; return (b === 'p' ? 'A station' : 'Track') + ' on the ' + SIDE[d] + ' points into this space, and your tile is blank on that side.'; }
@@ -724,6 +776,7 @@ div.tilebtn { cursor: default; }
   function setPalette(pal) { if (!pal || pal.length !== 4) return; cfg.pal = pal; for (var i = 0; i < 4; i++) { COL[i] = BASE.col[pal[i]]; PALE[i] = BASE.pale[pal[i]]; DEEP[i] = BASE.deep[pal[i]]; NAME[i] = BASE.name[pal[i]]; } }
   function randomPalette() { var a = [0, 1, 2, 3]; for (var i = 3; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
   var NEUTRAL = '#b4bcc3', FROZEN = '#dfe3e6', INK = '#101c22', PAPER = '#fcfdf9', SIGNAL = '#ffd23f', GOLD = '#f5c211', FREEPIP = '#d5dbe0', STEEL = '#8794a2';
+  if (CITY) { NEUTRAL = '#bfb2a0'; FROZEN = '#e4dccd'; INK = '#2f2620'; PAPER = '#f8f0df'; SIGNAL = '#f4c04a'; GOLD = '#e7a63a'; FREEPIP = '#e3d9c7'; STEEL = '#8b8f9a'; }
   var SEAT_LABEL = { human: 'Person', easy: 'Bot: easy', medium: 'Bot: medium', hard: 'Bot: hard' };
   function $(id) { return document.getElementById(id); }
 
@@ -738,7 +791,7 @@ div.tilebtn { cursor: default; }
   function humans() { var h = []; for (var p = 0; p < S.n; p++) if (!isBot(p)) h.push(p); return h; }
   function nm(p) { return p === sole ? 'You' : (net.names[p] || NAME[p]); }
   function poss(p) { return p === sole ? 'your' : (net.names[p] || NAME[p]) + '\'s'; }
-  function tag(p) { return '<b style="color:' + COL[p] + '">' + nm(p) + '</b>'; }
+  function tag(p) { return '<b style="color:' + (CITY ? DEEP[p] : COL[p]) + '">' + nm(p) + '</b>'; }
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 
   // ------------------------------------------------------------ tile art
@@ -766,6 +819,7 @@ div.tilebtn { cursor: default; }
   function srand(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   var ROOF = ['#e07a5f', '#3d5a80', '#81b29a', '#f2cc8f', '#9c6644', '#6d597a'], WALL = ['#f4f1de', '#e9e3d5', '#dfe7ec', '#f6e7d8'];
   function building(x, y, w, h, r) {
+    if (CITY) return wcBuilding(x, y, w, h, r);
     var roof = ROOF[Math.floor(r() * ROOF.length)], wall = WALL[Math.floor(r() * WALL.length)], s = '';
     s += '<rect x="' + (x + 1.2) + '" y="' + (y + 1.8) + '" width="' + w + '" height="' + h + '" rx="1.5" fill="rgba(0,0,0,.18)"/>';
     s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="' + wall + '" stroke="#5b6670" stroke-width=".7"/>';
@@ -773,7 +827,7 @@ div.tilebtn { cursor: default; }
     for (var wx = x + 2.5; wx < x + w - 2; wx += 4.2) for (var wy = y + 5.5; wy < y + h - 2; wy += 4.2) s += '<rect x="' + wx.toFixed(1) + '" y="' + wy.toFixed(1) + '" width="2" height="2" fill="' + (r() < .3 ? '#ffd166' : '#7b8a96') + '"/>';
     return s;
   }
-  function tree(x, y, r0) { return '<circle cx="' + (x + .8) + '" cy="' + (y + 1.2) + '" r="' + r0 + '" fill="rgba(0,0,0,.15)"/><circle cx="' + x + '" cy="' + y + '" r="' + r0 + '" fill="#6a994e" stroke="#386641" stroke-width=".7"/><circle cx="' + (x - r0 * .3) + '" cy="' + (y - r0 * .3) + '" r="' + (r0 * .35) + '" fill="#a7c957"/>'; }
+  function tree(x, y, r0) { if (CITY) return wcTree(x, y, r0); return '<circle cx="' + (x + .8) + '" cy="' + (y + 1.2) + '" r="' + r0 + '" fill="rgba(0,0,0,.15)"/><circle cx="' + x + '" cy="' + y + '" r="' + r0 + '" fill="#6a994e" stroke="#386641" stroke-width=".7"/><circle cx="' + (x - r0 * .3) + '" cy="' + (y - r0 * .3) + '" r="' + (r0 * .35) + '" fill="#a7c957"/>'; }
   function cityDecor(seed) {
     var r = srand(seed), s = '', C = [[3, 3], [69, 3], [3, 40], [69, 40]];
     C.forEach(function (c) {
@@ -808,7 +862,8 @@ div.tilebtn { cursor: default; }
     return s;
   }
   // v: {t, rot, col, lock, broken, frozen, plat[4], gold[4], penn[4]}
-  function paintTile(v) {
+  function paintTile(v) { var s = paintTile0(v); return CITY ? wc(s) + '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="url(#grain' + (((v.seed || 0) >>> 0) % 3) + ')" pointer-events="none"/>' : s; }
+  function paintTile0(v) {
     var def = E.DEFS[v.t], kind = def.kind, fill = v.lock || PAPER, s, d;
     if (kind === 'obstacle') return obstacleTile(v.t, v.seed || 1, v);
     if (kind === 'sabotage') {
@@ -883,6 +938,187 @@ div.tilebtn { cursor: default; }
     return 'Hub';
   }
 
+  // ------------------------------------------------------------ city: watercolour and ink on rough paper
+  var WCMAP = { '#cfe8f3': '#dcedf1', '#cfe3b8': '#e4edc9', '#ece4d4': '#f3e7d3', '#b9c3c8': '#9a8775', '#4ea8de': '#7fc0e4', '#2a6f97': '#2f2620', '#cfeaf7': '#f6fbfd',
+    '#e9dcc0': '#efd8ad', '#d8ccb4': '#eab892', '#9c8f74': '#2f2620', '#f1e9d6': '#f6d7aa', '#6b705c': '#2f2620', '#e3d7bd': '#f0a98a', '#b7ab8f': '#c98a64', '#c3ccd1': '#a8937c',
+    '#7d8597': '#a3bbb5', '#6c757d': '#8eaba5', '#8d99ae': '#b8cbc2', '#4a4e69': '#2f2620', '#5c677d': '#86a099', '#f8f9fa': '#fdfaf3',
+    '#1d2731': '#5a4740', '#0b1217': '#2f2620', '#c2cad2': '#ddd3c4', '#d9a400': '#cf8f2e', '#e9b200': '#efb54b', '#b5bec6': '#bfb09c', '#16444d': '#c8694a', '#0a2a31': '#2f2620', '#2c6570': '#f1c9a3' };
+  function wc(s) { return CITY ? s.replace(/#[0-9a-fA-F]{6}\b/g, function (m) { return WCMAP[m.toLowerCase()] || m; }).replace(/"#fff"/g, '"#fffaf2"') : s; }
+  var WC_WALL = ['#f2a68c', '#f7cf74', '#93d2c8', '#f5b9c4', '#ec9461', '#f3dfa8', '#b9d98a'], WC_ROOF = ['#d9534f', '#4f9a5a', '#a0644a', '#e0803c', '#5aa3b8'];
+  function wcBuilding(x, y, w, h, r) {
+    var wall = WC_WALL[Math.floor(r() * WC_WALL.length)], roof = WC_ROOF[Math.floor(r() * WC_ROOF.length)], s = '', k = r(), ik = ' stroke="' + INK + '" stroke-width=".7" stroke-linejoin="round"';
+    s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + wall + '" fill-opacity=".9"' + ik + '/>';
+    s += '<rect x="' + x + '" y="' + (y + h * .6).toFixed(1) + '" width="' + w + '" height="' + (h * .4).toFixed(1) + '" fill="#8a4a2a" fill-opacity=".1"/>';
+    if (k < .45) s += '<rect x="' + (x - 1) + '" y="' + (y - 2.6) + '" width="' + (w + 2) + '" height="3" fill="' + roof + '"' + ik + '/>';
+    else if (k < .8) s += '<path d="M' + (x - 1) + ' ' + y + ' L' + (x + w / 2) + ' ' + (y - 5 - r() * 3).toFixed(1) + ' L' + (x + w + 1) + ' ' + y + ' Z" fill="' + roof + '" fill-opacity=".9"' + ik + '/>';
+    else s += '<path d="M' + (x + 1) + ' ' + y + ' A' + (w / 2 - 1) + ' ' + (w / 2.4).toFixed(1) + ' 0 0 1 ' + (x + w - 1) + ' ' + y + ' Z" fill="#c9a07a"' + ik + '/><path d="M' + (x + w / 2) + ' ' + (y - w / 2.4 - 2.5).toFixed(1) + ' v2.5" stroke="' + INK + '" stroke-width=".7"/>';
+    for (var wx = x + 2; wx < x + w - 2.2; wx += 3.8) for (var wy = y + 3; wy < y + h - 3; wy += 4.6)
+      s += '<path d="M' + wx.toFixed(1) + ' ' + (wy + 3.2).toFixed(1) + ' v-2.1 a1.1 1.1 0 0 1 2.2 0 v2.1 z" fill="' + (r() < .2 ? '#ffd86b' : '#8fc8ec') + '" stroke="' + INK + '" stroke-width=".45"/>';
+    return s;
+  }
+  function wcTree(x, y, r0) {
+    return '<path d="M' + x + ' ' + (y + r0 * .4).toFixed(1) + ' V' + (y + r0 * 1.6).toFixed(1) + '" stroke="#8a5a3b" stroke-width="1.1" stroke-linecap="round"/>' +
+      '<circle cx="' + x + '" cy="' + y + '" r="' + r0 + '" fill="#9fcf5c" fill-opacity=".85"/><circle cx="' + (x - r0 * .35).toFixed(1) + '" cy="' + (y + r0 * .25).toFixed(1) + '" r="' + (r0 * .7).toFixed(1) + '" fill="#5f9f3c" fill-opacity=".55"/><circle cx="' + (x + r0 * .3).toFixed(1) + '" cy="' + (y - r0 * .35).toFixed(1) + '" r="' + (r0 * .45).toFixed(1) + '" fill="#d4e886" fill-opacity=".85"/>' +
+      '<path d="M' + (x - r0 * .85).toFixed(1) + ' ' + (y + r0 * .2).toFixed(1) + ' q' + (r0 * .3).toFixed(1) + ' ' + (-r0 * 1.1).toFixed(1) + ' ' + (r0 * .95).toFixed(1) + ' ' + (-r0 * .85).toFixed(1) + ' q' + (r0 * .7).toFixed(1) + ' ' + (r0 * .1).toFixed(1) + ' ' + (r0 * .75).toFixed(1) + ' ' + (r0 * .9).toFixed(1) + '" stroke="' + INK + '" stroke-width=".55" fill="none" stroke-opacity=".75"/>';
+  }
+  function canvasURL(w, h, paint) { try { var c = document.createElement('canvas'); c.width = w; c.height = h; paint(c.getContext('2d'), w, h); return c.toDataURL('image/png'); } catch (e) { return ''; } }
+  function paperTex() { // warm rough paper: grain, fibres and faint blooms, wrapped so it tiles
+    return canvasURL(256, 256, function (g, w, h) {
+      var r = srand(77), i, k, ox, oy;
+      g.fillStyle = '#f3ead8'; g.fillRect(0, 0, w, h);
+      var im = g.getImageData(0, 0, w, h), d = im.data;
+      for (i = 0; i < d.length; i += 4) { var n = (r() - .5) * 16 + (r() < .02 ? -14 : 0); d[i] += n; d[i + 1] += n; d[i + 2] += n * .85; }
+      g.putImageData(im, 0, 0);
+      for (k = 0; k < 22; k++) { var bx = r() * w, by = r() * h, br = 20 + r() * 50; for (ox = -w; ox <= w; ox += w) for (oy = -h; oy <= h; oy += h) { var gr = g.createRadialGradient(bx + ox, by + oy, 0, bx + ox, by + oy, br); gr.addColorStop(0, 'rgba(176,140,96,' + (.03 + r() * .03).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(176,140,96,0)'); g.fillStyle = gr; g.fillRect(bx + ox - br, by + oy - br, br * 2, br * 2); } }
+      g.strokeStyle = 'rgba(120,96,70,.13)'; g.lineWidth = .6;
+      for (k = 0; k < 160; k++) { var fx = r() * w, fy = r() * h, a = r() * 6.3, l = 3 + r() * 9; for (ox = -w; ox <= w; ox += w) for (oy = -h; oy <= h; oy += h) { g.beginPath(); g.moveTo(fx + ox, fy + oy); g.quadraticCurveTo(fx + ox + Math.cos(a + 1) * l * .5, fy + oy + Math.sin(a + 1) * l * .5, fx + ox + Math.cos(a) * l, fy + oy + Math.sin(a) * l); g.stroke(); } }
+    });
+  }
+  function washTex(seed) { // see-through watercolour mottling laid over each tile: pigment blooms and darker pooled edges
+    return canvasURL(200, 124, function (g, w, h) {
+      var r = srand(seed), k;
+      for (k = 0; k < 26; k++) { var x = r() * w, y = r() * h, rr = 8 + r() * 30, gr = g.createRadialGradient(x, y, rr * .55, x, y, rr); gr.addColorStop(0, 'rgba(120,80,40,0)'); gr.addColorStop(.8, 'rgba(120,80,40,' + (.06 + r() * .08).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(120,80,40,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+      var im = g.getImageData(0, 0, w, h), d = im.data;
+      for (var i = 0; i < d.length; i += 4) { if (r() < .5) continue; d[i] = 110; d[i + 1] = 80; d[i + 2] = 50; d[i + 3] = Math.max(d[i + 3], Math.floor(r() * 24)); }
+      g.putImageData(im, 0, 0);
+      g.strokeStyle = 'rgba(110,70,40,.15)'; g.lineWidth = 7; g.strokeRect(4, 4, w - 8, h - 8);
+    });
+  }
+  function cityArt() {
+    document.body.classList.add('city');
+    var paper = paperTex(); if (paper) document.body.style.setProperty('--paper', 'url(' + paper + ')');
+    var defs = '<defs><filter id="inkwob" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency=".045" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="3" xChannelSelector="R" yChannelSelector="G"/></filter>';
+    for (var i = 0; i < 3; i++) { var u = washTex(11 + i * 7); if (u) defs += '<pattern id="grain' + i + '" patternUnits="userSpaceOnUse" width="100" height="62"><image href="' + u + '" width="100" height="62" preserveAspectRatio="none"/></pattern>'; }
+    svg.insertAdjacentHTML('afterbegin', defs + '</defs>');
+    tilesG.setAttribute('filter', 'url(#inkwob)');
+    BACK = wc(BACK);
+  }
+
+  // ------------------------------------------------------------ city: trains run hub to hub along every route of a finished line, then vanish into the station
+  var ctrains = new Map(), lastNow = 0;
+  function cityRoutes(L) {
+    var inLine = {}; L.cells.forEach(function (c) { inLine[E.key(c.x, c.y)] = c; });
+    function open(c, d) { var a = E.edgeOf(c.t, c.rot, d); return a === 't' || a === 'x'; }
+    function nbr(c, d) { if (!open(c, d)) return null; var n = inLine[E.key(c.x + E.DX[d], c.y + E.DY[d])]; return n && open(n, E.opp(d)) ? n : null; }
+    function into(c, d) { // how far a train runs past this open end to reach the hub, or 0 if it is not a hub
+      var nx = c.x + E.DX[d], ny = c.y + E.DY[d], n = S.board.get(E.key(nx, ny));
+      if (!n) return E.outside(nx, ny) ? 16 : 0;
+      var k = E.DEFS[n.t].kind; if (k === 'obstacle') return d % 2 ? 11 : 13;
+      if (E.edgeOf(n.t, n.rot, E.opp(d)) === 'p') return k === 'combo' ? 19 : (d % 2 ? 17 : 29);
+      return 0;
+    }
+    var terms = [];
+    L.cells.forEach(function (c) {
+      if (c.t === 'penn') { terms.push({ c: c, d: null, ext: 0 }); return; }
+      for (var d = 0; d < 4; d++) if (open(c, d) && !nbr(c, d)) { var e = into(c, d); if (e) terms.push({ c: c, d: d, ext: e }); }
+    });
+    function pathBetween(a, b) {
+      var prev = {}, seen = {}, q = [a]; seen[E.key(a.x, a.y)] = 1;
+      while (q.length) { var c = q.shift(); if (c === b) break; for (var d = 0; d < 4; d++) { var n = nbr(c, d); if (!n) continue; var kn = E.key(n.x, n.y); if (!seen[kn]) { seen[kn] = 1; prev[kn] = c; q.push(n); } } }
+      if (!seen[E.key(b.x, b.y)]) return null;
+      var p = [], cur = b, g = 0; while (cur && g++ < 400) { p.push(cur); if (cur === a) break; cur = prev[E.key(cur.x, cur.y)]; }
+      return p.reverse();
+    }
+    function dirTo(c, n) { for (var d = 0; d < 4; d++) if (c.x + E.DX[d] === n.x && c.y + E.DY[d] === n.y) return d; return null; }
+    var routes = [];
+    for (var i = 0; i < terms.length && routes.length < 14; i++) for (var j = i + 1; j < terms.length && routes.length < 14; j++) {
+      var A = terms[i], B = terms[j], path = pathBetween(A.c, B.c); if (!path) continue;
+      if (A.c === B.c && A.d === B.d) continue;
+      var pts = [];
+      var add = function (p) { var l = pts[pts.length - 1]; if (!l || Math.abs(l[0] - p[0]) + Math.abs(l[1] - p[1]) > .01) pts.push(p); };
+      var seg = function (a, b) { var n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 3)); for (var s = 0; s <= n; s++) add([a[0] + (b[0] - a[0]) * s / n, a[1] + (b[1] - a[1]) * s / n]); };
+      var quad = function (a, m, b) { for (var s = 0; s <= 16; s++) { var t = s / 16, u = 1 - t; add([u * u * a[0] + 2 * u * t * m[0] + t * t * b[0], u * u * a[1] + 2 * u * t * m[1] + t * t * b[1]]); } };
+      var edgePt = function (c, d, ext) { return [c.x * W + EP[d][0] + E.DX[d] * (ext || 0), c.y * H + EP[d][1] + E.DY[d] * (ext || 0)]; };
+      if (A.d !== null) seg(edgePt(A.c, A.d, A.ext), edgePt(A.c, A.d, 0));
+      for (var k = 0; k < path.length; k++) {
+        var c = path[k], din = k === 0 ? A.d : dirTo(c, path[k - 1]), dout = k === path.length - 1 ? B.d : dirTo(c, path[k + 1]), C = [c.x * W + CX, c.y * H + CY], opens = 0;
+        for (var dd = 0; dd < 4; dd++) if (open(c, dd)) opens++;
+        if (din === null && dout === null) add(C);
+        else if (din === null) seg(C, edgePt(c, dout));
+        else if (dout === null) seg(edgePt(c, din), C);
+        else if (((din + 2) & 3) === dout) seg(edgePt(c, din), edgePt(c, dout));
+        else if (opens === 2) quad(edgePt(c, din), C, edgePt(c, dout));
+        else { seg(edgePt(c, din), C); seg(C, edgePt(c, dout)); }
+      }
+      if (B.d !== null) seg(edgePt(B.c, B.d, 0), edgePt(B.c, B.d, B.ext));
+      var cum = [0]; for (var q2 = 1; q2 < pts.length; q2++) cum.push(cum[q2 - 1] + Math.hypot(pts[q2][0] - pts[q2 - 1][0], pts[q2][1] - pts[q2 - 1][1]));
+      if (cum[cum.length - 1] > 20) routes.push({ p: pts, cum: cum, len: cum[cum.length - 1] });
+    }
+    return routes;
+  }
+  function carSvg(col, engine) {
+    if (engine) return '<g><path d="M-8 -4.6 H4 Q8.6 -4.6 8.6 0 Q8.6 4.6 4 4.6 H-8 Z" fill="' + col + '" stroke="' + INK + '" stroke-width="1.2" stroke-linejoin="round"/><rect x="-7" y="-3.2" width="5" height="6.4" rx="1" fill="#fffaf2" stroke="' + INK + '" stroke-width=".8"/><circle cx="3.2" cy="0" r="1.9" fill="' + INK + '"/></g>';
+    return '<g><rect x="-6.4" y="-4.2" width="12.8" height="8.4" rx="2" fill="#fffaf2" stroke="' + INK + '" stroke-width="1.1"/><rect x="-4.6" y="-2.2" width="9.2" height="4.4" rx="1" fill="' + col + '" fill-opacity=".85"/></g>';
+  }
+  function buildCityTrains() {
+    var keep = new Map(), h = '', order = [];
+    S.an.lines.forEach(function (L) {
+      if (!L.locked || L.track < 2 || override.unlock.has(E.key(L.cells[0].x, L.cells[0].y))) return;
+      var routes = cityRoutes(L); if (!routes.length) return;
+      var sig = L.owner + ':' + routes.map(function (r) { return r.p[0].join(',') + '>' + r.p[r.p.length - 1].join(','); }).join('|');
+      var old = ctrains.get(sig), T = old ? { routes: routes, i: old.i % routes.length, s: old.s, wait: old.wait, dir: old.dir } : { routes: routes, i: Math.floor(Math.random() * routes.length), s: 0, wait: 300 + Math.random() * 2500, dir: 1 };
+      T.col = DEEP[L.owner]; keep.set(sig, T); order.push(T);
+      h += '<g class="ctrain">' + carSvg(T.col, true) + carSvg(T.col, false) + carSvg(T.col, false) + '</g>';
+    });
+    trainsG.innerHTML = h; ctrains = keep;
+    var gs = trainsG.childNodes;
+    order.forEach(function (T, i) { T.cars = Array.prototype.slice.call(gs[i].childNodes); T.cars.forEach(function (c) { c.setAttribute('opacity', '0'); }); });
+  }
+  function routeAt(R, s) {
+    var lo = 0, hi = R.cum.length - 1; while (lo < hi - 1) { var mid = (lo + hi) >> 1; if (R.cum[mid] <= s) lo = mid; else hi = mid; }
+    var a = R.p[lo], b = R.p[hi], f = (s - R.cum[lo]) / Math.max(.0001, R.cum[hi] - R.cum[lo]);
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI];
+  }
+  function tickCityTrains(now) {
+    var dt = lastNow ? Math.min(60, now - lastNow) : 16; lastNow = now;
+    ctrains.forEach(function (T) {
+      if (!T.cars) return;
+      if (!animOn) { T.cars.forEach(function (c) { c.setAttribute('opacity', '0'); }); return; }
+      if (T.wait > 0) { T.wait -= dt; return; }
+      var R = T.routes[T.i], GAP = 14.5, FADE = 15; T.s += dt * .06;
+      for (var k = 0; k < T.cars.length; k++) {
+        var pos = T.s - k * GAP, el = T.cars[k];
+        if (pos <= 0 || pos >= R.len) { el.setAttribute('opacity', '0'); continue; }
+        var at = routeAt(R, T.dir > 0 ? pos : R.len - pos), ang = at[2] + (T.dir > 0 ? 0 : 180);
+        el.setAttribute('transform', 'translate(' + at[0].toFixed(1) + ' ' + at[1].toFixed(1) + ') rotate(' + ang.toFixed(1) + ')');
+        el.setAttribute('opacity', Math.max(0, Math.min(1, pos / FADE, (R.len - pos) / FADE)).toFixed(2));
+      }
+      if (T.s - (T.cars.length - 1) * GAP >= R.len) { // the whole train has gone into the hub: the next one comes along another route
+        T.cars.forEach(function (c) { c.setAttribute('opacity', '0'); });
+        T.i = (T.i + 1) % T.routes.length; if (T.i === 0) T.dir = -T.dir; T.s = 0; T.wait = 400 + Math.random() * 900;
+      }
+    });
+  }
+
+  // ------------------------------------------------------------ city: train sounds, made in the browser
+  function noiseBuf(c) { if (sound.nb) return sound.nb; var b = c.createBuffer(1, c.sampleRate, c.sampleRate), d = b.getChannelData(0); for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; sound.nb = b; return b; }
+  function chugga() { // chugga chugga, when a tile goes down
+    if (!CITY || !sound.on || !sound.ctx) return;
+    try {
+      var c = sound.ctx, t0 = c.currentTime + .02; if (c.state === 'suspended') c.resume();
+      [0, .15, .3, .45, .6, .75, .9, 1.05].forEach(function (t, i) {
+        var src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain(), a = (i % 2 ? .12 : .26) * (1 - i * .07);
+        src.buffer = noiseBuf(c); bp.type = 'bandpass'; bp.frequency.value = i % 2 ? 1500 : 650; bp.Q.value = .9;
+        g.gain.setValueAtTime(0, t0 + t); g.gain.linearRampToValueAtTime(a, t0 + t + .012); g.gain.exponentialRampToValueAtTime(.001, t0 + t + .13);
+        src.connect(bp); bp.connect(g); g.connect(c.destination); src.start(t0 + t, Math.random() * .6, .15);
+        if (i % 2 === 0) { var o = c.createOscillator(), og = c.createGain(); o.frequency.setValueAtTime(110, t0 + t); o.frequency.exponentialRampToValueAtTime(55, t0 + t + .1); og.gain.setValueAtTime(a * .6, t0 + t); og.gain.exponentialRampToValueAtTime(.001, t0 + t + .12); o.connect(og); og.connect(c.destination); o.start(t0 + t); o.stop(t0 + t + .14); }
+      });
+    } catch (e) { /* no audio */ }
+  }
+  function whistle() { // choo choo, when a line is finished
+    if (!CITY || !sound.on || !sound.ctx) return;
+    try {
+      var c = sound.ctx, t0 = c.currentTime + .03; if (c.state === 'suspended') c.resume();
+      [[0, .42], [.56, .8]].forEach(function (b) {
+        var st = t0 + b[0], en = st + b[1], m = c.createGain(), bp = c.createBiquadFilter();
+        m.gain.setValueAtTime(0, st); m.gain.linearRampToValueAtTime(.15, st + .06); m.gain.setValueAtTime(.15, en - .1); m.gain.linearRampToValueAtTime(0, en);
+        bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = .8; bp.connect(m); m.connect(c.destination);
+        [392, 494, 587].forEach(function (f) { var o = c.createOscillator(), og = c.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * .93, st); o.frequency.linearRampToValueAtTime(f, st + .09); og.gain.value = .3; o.connect(og); og.connect(bp); o.start(st); o.stop(en + .05); });
+        var n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain(); n.buffer = noiseBuf(c); nf.type = 'bandpass'; nf.frequency.value = 2600; nf.Q.value = 1; ng.gain.value = .35; n.connect(nf); nf.connect(ng); ng.connect(m); n.start(st, 0, b[1] + .05);
+      });
+    } catch (e) { /* no audio */ }
+  }
+
   // ------------------------------------------------------------ motion helpers (JS tickers)
   function pause(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
   function wait(ms) { return animOn && ms > 0 ? pause(ms) : Promise.resolve(); }
@@ -901,8 +1137,10 @@ div.tilebtn { cursor: default; }
       var i, ph = (now % 1300) / 1300, w = 0.5 + 0.5 * Math.sin(ph * 2 * Math.PI);
       for (i = 0; i < pulseEls.length; i++) pulseEls[i].setAttribute('r', (4.8 + 2.2 * w).toFixed(2));
       for (i = 0; i < ringEls.length; i++) ringEls[i].setAttribute('stroke-opacity', (0.55 + 0.45 * w).toFixed(2));
+      if (CITY) tickCityTrains(now);
       for (i = 0; i < trains.length; i++) { var tr = trains[i], q = 0; if (tr.range > 0) { var pp = (now * 0.055 + tr.seed) % (2 * tr.range); q = pp < tr.range ? pp : 2 * tr.range - pp; } tr.a.setAttribute('stroke-dashoffset', (-q).toFixed(1)); tr.b.setAttribute('stroke-dashoffset', (-q).toFixed(1)); }
     }
+    else if (CITY) tickCityTrains(now);
     requestAnimationFrame(ticker);
   }
 
@@ -955,6 +1193,7 @@ div.tilebtn { cursor: default; }
     return pts;
   }
   function buildTrains() {
+    if (CITY) return buildCityTrains();
     var h = '', DASH = ' stroke-dasharray="9 2.5 9 2.5 9 99999" stroke-dashoffset="0"';
     S.an.lines.forEach(function (L) {
       if (!L.locked || L.track < 2 || override.unlock.has(E.key(L.cells[0].x, L.cells[0].y))) return;
@@ -1027,7 +1266,7 @@ div.tilebtn { cursor: default; }
     return s;
   }
   function renderMarks() {
-    var s = borderSvg(), A = S.an, mine = canPlan();
+    var s = wc(borderSvg()), A = S.an, mine = canPlan();
     A.lines.forEach(function (L) {
       if (L.locked) return;
       L.loose.forEach(function (e) {
@@ -1246,7 +1485,7 @@ div.tilebtn { cursor: default; }
       ev.taken.forEach(function (c) { override.owner.set(E.key(c[0], c[1]), c[2]); });
       ev.finished.forEach(function (f) { f.cells.forEach(function (c) { override.unlock.add(E.key(c[0], c[1])); }); });
     }
-    fit(); renderAll();
+    fit(); renderAll(); chugga();
     var k = E.key(ev.x, ev.y), g = tilesG.querySelector('[data-k="' + k + '"]'), bx = ev.x * W, by = ev.y * H, chain;
     chain = tween(260, function (p) {
       if (!g) return; var e = 1 - Math.pow(1 - p, 3), sc = 1.55 - 0.55 * e;
@@ -1254,8 +1493,8 @@ div.tilebtn { cursor: default; }
       g.setAttribute('opacity', Math.min(1, 0.25 + e).toFixed(2));
     });
     ev.taken.forEach(function (c) { chain = chain.then(function () { if (!override.owner.size) return; override.owner.delete(E.key(c[0], c[1])); renderBoard(); return wait(Math.max(28, 70 - ev.taken.length * 2)); }); });
-    ev.finished.forEach(function (f) {
-      chain = chain.then(function () { f.cells.forEach(function (c) { override.unlock.delete(E.key(c[0], c[1])); }); renderBoard(); renderScores(); return popScore(f); });
+    ev.finished.forEach(function (f, fi) {
+      chain = chain.then(function () { if (fi === 0) whistle(); f.cells.forEach(function (c) { override.unlock.delete(E.key(c[0], c[1])); }); renderBoard(); renderScores(); return popScore(f); });
     });
     return chain.then(function () { override.owner.clear(); override.unlock.clear(); renderScores(); renderAll(); });
   }
@@ -1278,7 +1517,7 @@ div.tilebtn { cursor: default; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (CITY ? '<li><b>Landmarks:</b> track may run into a park, lake or arch; a station appears there and caps that end. The first player to reach each landmark scores +3 at once, and keeps it.</li><li><b>Bonuses:</b> +5 for a finished line with tunnels on two different mountain faces (an express). +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind.</li>' : '') +
+    (CITY ? '<li><b>Landmarks:</b> only the first track to reach a park, lake or arch may connect to it. A station appears there and caps that end, and that player scores +3 at once and keeps it. After that, no other track may run into it.</li><li><b>Bonuses:</b> +5 for a finished line with tunnels on two different mountain faces (an express). +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind.</li>' : '') +
     (MAP ? '<li><b>The mountains:</b> the board is a 7 by 7 rectangle or a random shape, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li>' + (CITY ? '' : '<li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>') : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
@@ -1624,7 +1863,7 @@ div.tilebtn { cursor: default; }
 
   function start(data) {
     svg = $('board'); viewG = $('view'); shadowG = $('shadows'); tilesG = $('tiles'); trainsG = $('trains'); marksG = $('marks'); fxG = $('fx'); wrap = $('boardWrap');
-    wire(); requestAnimationFrame(ticker);
+    if (CITY) cityArt(); wire(); requestAnimationFrame(ticker);
     var restored = false;
     try { if (data && data.game && data.game.v === 3 && data.cfg) { S = E.deserialize(data.game); cfg = data.cfg; setPalette(cfg.pal); started = !!data.started; restored = started; } } catch (e) { S = null; }
     if (!S) S = E.newGame(gameOpts(cfg.n));
