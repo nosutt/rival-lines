@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-2000";
+window.RL_BUILD = "20261124-2028";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -184,6 +184,7 @@ div.tilebtn { cursor: default; }
 #market .tilebtn { width: 84px; max-width: 84px; }
 #market .tilebtn.off { opacity: .55; cursor: default; }
 #market .btn { min-height: 38px; }
+#market .tilebtn.pick, #market .btn.pick { outline: 4px solid var(--signal); outline-offset: 2px; transform: translateY(-6px); opacity: 1 !important; }
 
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&amp;display=swap" rel="stylesheet">
@@ -232,7 +233,7 @@ body.city #market .mlabel { font-weight: 400; }
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2000</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2028</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -350,7 +351,7 @@ body.city #market .mlabel { font-weight: 400; }
         var c = stack.pop(); line.cells.push(c); line.track++;
         if (c.br) line.frozen = true;
         if (c.t === 'penn') line.hasPenn = true; else line.body++;
-        if (c.mk) { line.platforms += c.mk; line.marks = (line.marks || 0) + c.mk; }
+        if (c.mk) line.marks = (line.marks || 0) + c.mk; // a landmark station: a stop for the trains, scored once when built, never multiplied
         for (var d = 0; d < 4; d++) {
           var a = edgeOf(c.t, c.rot, d);
           if (a !== 't' && a !== 'x') continue;
@@ -380,7 +381,7 @@ body.city #market .mlabel { font-weight: 400; }
       if (DEFS[n.t].kind !== 'obstacle') hasNb = true;
       a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d));
       L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
-      if (LANDMARKS && isObs(n)) { if (a === '.') continue; return null; }
+      if (LANDMARKS && isObs(n)) { if (a === '.' || a === 'x') continue; return null; }
       if (a === '.') { if (b === '.' || b === 'x') continue; return null; }
       if (a === 't') {
         if (b === 't' || b === 'x') {
@@ -477,7 +478,7 @@ body.city #market .mlabel { font-weight: 400; }
     for (d = 0; d < 4; d++) {
       n = S.board.get(key(x + DX[d], y + DY[d])); if (!n) continue;
       if (DEFS[n.t].kind !== 'obstacle') hasNb = true; a = edgeOf(t, rot, d); b = edgeOf(n.t, n.rot, opp(d)); L = hasTrack(n.t) ? lineAt(A, n.x, n.y) : null;
-      if (DEFS[n.t].kind === 'obstacle' && a !== '.') return 'Track and stations cannot run into the ' + n.t + ' on the ' + SIDE[d] + '. Lay track alongside it instead.';
+      if (DEFS[n.t].kind === 'obstacle' && a !== '.' && a !== 'x') return 'Track and stations cannot run into the ' + n.t + ' on the ' + SIDE[d] + '. Lay track alongside it instead.';
       if (DEFS[n.t].kind === 'obstacle') continue;
       if (a === '.') { if (b === '.' || b === 'x') continue; return (b === 'p' ? 'A station' : 'Track') + ' on the ' + SIDE[d] + ' points into this space, and your tile is blank on that side.'; }
       if (a === 'p' && b === 'p') return 'Your station would face another station on the ' + SIDE[d] + '. Stations need track between them.';
@@ -537,7 +538,12 @@ body.city #market .mlabel { font-weight: 400; }
     if (S.drawFor !== P) throw new Error('not drawing');
     var t = null;
     if (i >= 0 && S.market && i < S.market.length) { t = S.market.splice(i, 1)[0]; if (S.bag.length) S.market.push(S.bag.pop()); }
-    else if (S.bag.length) t = S.bag.pop();
+    else if (S.bag.length) {
+      t = S.bag.pop();
+      if (S.market && S.market.length && S.bag.length) { // drawing blind keeps the row moving: the oldest face-up tile goes back in the bag, a new one turns up
+        var back = S.market.shift(); S.bag.splice(Math.floor(Math.random() * (S.bag.length + 1)), 0, back); S.market.push(S.bag.pop());
+      }
+    }
     else if (S.market && S.market.length) t = S.market.shift();
     if (t) S.hands[P].push(t);
     S.drawFor = -1; advance(S, P); checkOver(S);
@@ -589,15 +595,15 @@ body.city #market .mlabel { font-weight: 400; }
     var placed = S.board.get(key(m.x, m.y));
     if (S.rules && S.rules.landmarks && m.type === 'place' && placed && placed.mkd) placed.mkd.forEach(function (dl) {
       var nb = S.board.get(key(m.x + DX[dl], m.y + DY[dl]));
-      if (nb && S.claims[key(nb.x, nb.y)] === undefined) { S.claims[key(nb.x, nb.y)] = P; addBonus(S, P, 'landmark', 3); ev.marks.push([nb.x, nb.y]); }
+      if (nb && S.claims[key(nb.x, nb.y)] === undefined) { S.claims[key(nb.x, nb.y)] = P; addBonus(S, P, 'landmark', 1); ev.marks.push([nb.x, nb.y]); }
     });
     var firstNow = S.rules && S.rules.first && S.lines.length === 0;
     res.finished.forEach(function (L) {
       var pts = lineValue(L), lb = label(S, P), who = L.owner >= 0 ? L.owner : P;
       L.cells.forEach(function (c) { c.lk = 1; c.lb = lb; });
       S.scores[who] += pts;
-      S.lines.push({ o: who, label: lb, track: L.body, platforms: L.platforms, pts: pts });
-      if (S.rules && S.rules.express && faces(L) >= 2) { addBonus(S, who, 'express', 5); ev.express = (ev.express || 0) + 5; }
+      S.lines.push({ o: who, label: lb, track: L.body, platforms: L.platforms, pts: pts, ex: isExp ? 1 : 0 });
+      var isExp = !!(S.rules && S.rules.express && faces(L) >= 2); if (isExp) ev.expressLine = true;
       if (firstNow) { addBonus(S, who, 'first', 3); ev.first = 3; firstNow = false; }
       ev.finished.push({ o: who, cells: L.cells.map(function (c) { return [c.x, c.y]; }), pts: pts, label: lb, track: L.body, platforms: L.platforms });
     });
@@ -640,6 +646,10 @@ body.city #market .mlabel { font-weight: 400; }
       S.lines.forEach(function (l) { len[l.o] = Math.max(len[l.o], l.track); st[l.o] += Math.max(1, l.platforms); });
       var ml = Math.max.apply(null, len), ms = Math.max.apply(null, st);
       for (p2 = 0; p2 < S.n; p2++) { if (ml > 0 && len[p2] === ml) addBonus(S, p2, 'longest', 5); if (ms > 0 && st[p2] === ms) addBonus(S, p2, 'stations', 5); }
+      if (S.rules.express) { // one express award only: the longest line that crosses the map (ties go to the higher-scoring line, then the earlier one)
+        var bestX = null; S.lines.forEach(function (l) { if (l.ex && (!bestX || l.track > bestX.track || (l.track === bestX.track && l.pts > bestX.pts))) bestX = l; });
+        if (bestX) addBonus(S, bestX.o, 'express', 5);
+      }
     }
     return S.over;
   }
@@ -738,10 +748,11 @@ body.city #market .mlabel { font-weight: 400; }
   }
   function pick(S, P) { // which face-up tile to take, or -1 for blind
     if (!S.market || !S.market.length) return -1;
-    var best = -1, bv = 1.5, keep = S.hands[P];
+    var best = -1, bv = .3, keep = S.hands[P];
     S.market.forEach(function (t, i) {
-      S.hands[P] = keep.concat([t]); var v = 0;
-      E.legalMoves(S, P, S.hands[P].length - 1).forEach(function (m) { var s = 0; m.res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -.5) * E.lineValue(L); }); s += m.res.taken ? m.res.taken.length * 2 : 0; if (s > v) v = s; });
+      S.hands[P] = keep.concat([t]); var v = 0, ms = E.legalMoves(S, P, S.hands[P].length - 1);
+      v += Math.min(2.5, ms.length * .12); // a tile with many places to go is worth having
+      ms.forEach(function (m) { var s = 0; m.res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -.5) * E.lineValue(L); }); s += m.res.taken ? m.res.taken.length * 2 : 0; if (s > v) v = s; });
       if (E.DEFS[t].kind === 'penn') v += 4;
       if (v > bv) { bv = v; best = i; }
     });
@@ -749,6 +760,415 @@ body.city #market .mlabel { font-weight: 400; }
   }
   root.Bot = { choose: choose, pick: pick };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Derail: City — a small watercolour painter. Everything is painted onto canvas at load time:
+   cold-press paper (a height field lit from the top left), washes built from many thin deformed layers
+   (darker where they dry at the edges), pigment that settles into the paper's dips, and wobbly ink. */
+(function (root) {
+  'use strict';
+  function rng(seed) { var a = (seed >>> 0) || 1; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function gauss(r) { return (r() + r() + r() + r() - 2) * 0.87; }
+  function canvas(w, h) { var c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
+  function hex(c) { c = c.replace('#', ''); return [parseInt(c.substr(0, 2), 16), parseInt(c.substr(2, 2), 16), parseInt(c.substr(4, 2), 16)]; }
+  function rgba(c, a) { var h = hex(c); return 'rgba(' + h[0] + ',' + h[1] + ',' + h[2] + ',' + a.toFixed(3) + ')'; }
+  function mix(c1, c2, t) { var a = hex(c1), b = hex(c2), o = '#'; for (var i = 0; i < 3; i++) { var v = Math.round(a[i] + (b[i] - a[i]) * t); o += (v < 16 ? '0' : '') + v.toString(16); } return o; }
+  function pick(r, arr) { return arr[Math.floor(r() * arr.length)]; }
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+  // ---------------------------------------------------------------- paper
+  var G = 256, HM = null, PAPER = null, MASK = null;
+  function heights() { // tileable fractal noise: the tooth of cold-press paper
+    if (HM) return HM;
+    var r = rng(4711), h = new Float32Array(G * G), oct = [[64, .25], [32, .4], [16, .7], [8, 1], [4, .85], [2, .45]], i, x, y;
+    oct.forEach(function (o) {
+      var p = o[0], n = G / p, g = new Float32Array(n * n);
+      for (i = 0; i < n * n; i++) g[i] = r();
+      for (y = 0; y < G; y++) {
+        var fy = y / p, y0 = Math.floor(fy), ty = fy - y0; ty = ty * ty * (3 - 2 * ty);
+        var ya = (y0 % n) * n, yb = ((y0 + 1) % n) * n;
+        for (x = 0; x < G; x++) {
+          var fx = x / p, x0 = Math.floor(fx), tx = fx - x0; tx = tx * tx * (3 - 2 * tx);
+          var xa = x0 % n, xb = (x0 + 1) % n;
+          h[y * G + x] += ((g[ya + xa] * (1 - tx) + g[ya + xb] * tx) * (1 - ty) + (g[yb + xa] * (1 - tx) + g[yb + xb] * tx) * ty) * o[1];
+        }
+      }
+    });
+    var mn = 1e9, mx = -1e9; for (i = 0; i < h.length; i++) { if (h[i] < mn) mn = h[i]; if (h[i] > mx) mx = h[i]; }
+    for (i = 0; i < h.length; i++) h[i] = (h[i] - mn) / (mx - mn);
+    HM = h; return h;
+  }
+  function paper() { // the paper itself, lit from the top left so the tooth reads as bumps
+    if (PAPER) return PAPER;
+    var h = heights(), c = canvas(G, G), g = c.getContext('2d'), im = g.createImageData(G, G), d = im.data, r = rng(5);
+    for (var y = 0; y < G; y++) for (var x = 0; x < G; x++) {
+      var i = y * G + x, gx = h[y * G + (x + 1) % G] - h[y * G + (x + G - 1) % G], gy = h[((y + 1) % G) * G + x] - h[((y + G - 1) % G) * G + x];
+      var s = (-gx - gy) * 42 + (h[i] - .5) * 6 + (r() - .5) * 2.5;
+      d[i * 4] = clamp(246 + s); d[i * 4 + 1] = clamp(241 + s); d[i * 4 + 2] = clamp(231 + s * .92); d[i * 4 + 3] = 255;
+    }
+    g.putImageData(im, 0, 0); PAPER = c; return c;
+  }
+  function grainMask() { // how much pigment stays: more in the dips, less on the peaks
+    if (MASK) return MASK;
+    var h = heights(), c = canvas(G, G), g = c.getContext('2d'), im = g.createImageData(G, G), d = im.data;
+    for (var i = 0; i < G * G; i++) { var v = Math.pow(1 - h[i], 1.1) * .75 + .45; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = 0; d[i * 4 + 3] = clamp(v * 255); }
+    g.putImageData(im, 0, 0); MASK = c; return c;
+  }
+  function paperURL() { return paper().toDataURL('image/png'); }
+  function fillPaper(g, w, h, scale) { g.save(); var p = g.createPattern(paper(), 'repeat'); g.setTransform(scale, 0, 0, scale, 0, 0); g.fillStyle = p; g.fillRect(0, 0, w / scale + 2, h / scale + 2); g.restore(); }
+  function toURL(c) { // a short blob: URL instead of a long data URL
+    try { var d = c.toDataURL('image/png'), b = atob(d.split(',')[1]), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return URL.createObjectURL(new Blob([u], { type: 'image/png' })); } catch (e) { return c.toDataURL('image/png'); }
+  }
+
+  // ---------------------------------------------------------------- shapes
+  function deform(pts, depth, v, r) {
+    for (var k = 0; k < depth; k++) {
+      var out = [], n = pts.length;
+      for (var i = 0; i < n; i++) {
+        var a = pts[i], b = pts[(i + 1) % n], len = Math.hypot(b[0] - a[0], b[1] - a[1]), m = Math.min(v, len * .3);
+        out.push(a, [(a[0] + b[0]) / 2 + gauss(r) * m, (a[1] + b[1]) / 2 + gauss(r) * m]);
+      }
+      pts = out; v *= .58;
+    }
+    return pts;
+  }
+  function rect(x, y, w, h) { return [[x, y], [x + w / 2, y], [x + w, y], [x + w, y + h / 2], [x + w, y + h], [x + w / 2, y + h], [x, y + h], [x, y + h / 2]]; }
+  function ellipse(cx, cy, rx, ry, n, r, j) { var p = []; n = n || 14; for (var i = 0; i < n; i++) { var a = i / n * Math.PI * 2, k = 1 + (r ? gauss(r) * (j || .08) : 0); p.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]); } return p; }
+  function cubic(a, b, c, d, n) { var o = []; for (var i = 0; i <= n; i++) { var t = i / n, u = 1 - t; o.push([u * u * u * a[0] + 3 * u * u * t * b[0] + 3 * u * t * t * c[0] + t * t * t * d[0], u * u * u * a[1] + 3 * u * u * t * b[1] + 3 * u * t * t * c[1] + t * t * t * d[1]]); } return o; }
+  function bbox(pts) { var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; pts.forEach(function (p) { if (p[0] < x0) x0 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[0] > x1) x1 = p[0]; if (p[1] > y1) y1 = p[1]; }); return [x0, y0, x1, y1]; }
+
+  // ---------------------------------------------------------------- the painter
+  var SCR = null;
+  function Painter(c, R, ox, oy, seed) { this.c = c; this.g = c.getContext('2d'); this.R = R; this.ox = ox || 0; this.oy = oy || 0; this.r = rng(seed || 1); this.gs = Math.max(.6, R * .42); }
+  Painter.prototype.path = function (g, pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); };
+  // a wash: many thin, slightly different layers; pigment collects at the drying edge and in the paper's dips
+  Painter.prototype.wash = function (poly, col, o) {
+    o = o || {}; var r = this.r, R = this.R, layers = Math.max(2, Math.round((o.layers || 12) * (this.lf || 1))), a = o.a || .07, sp = o.spread === undefined ? 1.5 : o.spread, edge = o.edge === undefined ? a * 1.1 : o.edge;
+    var base = deform(poly, 1, sp * 1.6, r), bb = bbox(base), m = sp * 3 + 2, bx = bb[0] - m, by = bb[1] - m, bw = bb[2] - bb[0] + m * 2, bh = bb[3] - bb[1] + m * 2;
+    var pw = Math.ceil(bw * R), ph = Math.ceil(bh * R); if (pw < 1 || ph < 1) return;
+    if (!SCR) SCR = canvas(pw, ph);
+    if (SCR.width < pw || SCR.height < ph) { SCR.width = Math.max(SCR.width, pw); SCR.height = Math.max(SCR.height, ph); }
+    var s = SCR.getContext('2d');
+    s.setTransform(1, 0, 0, 1, 0, 0); s.globalCompositeOperation = 'source-over'; s.clearRect(0, 0, pw + 2, ph + 2);
+    s.setTransform(R, 0, 0, R, -bx * R, -by * R); s.lineJoin = 'round';
+    for (var i = 0; i < layers; i++) {
+      var q = deform(base, o.depth || this.depth || 3, sp, r); this.path(s, q);
+      s.fillStyle = rgba(col, a * (.75 + r() * .5)); s.fill();
+      if (edge) { s.strokeStyle = rgba(col, edge); s.lineWidth = o.edgeW || .55; s.stroke(); }
+    }
+    if (o.grain !== false) { // settle into the paper
+      s.globalCompositeOperation = 'destination-in'; var gs = this.gs * (o.grainScale || 1);
+      s.setTransform(gs, 0, 0, gs, 0, 0); s.fillStyle = s.createPattern(grainMask(), 'repeat');
+      var offx = (bx * R) % (G * gs), offy = (by * R) % (G * gs);
+      s.translate(-offx / gs, -offy / gs); s.fillRect(offx / gs - 1, offy / gs - 1, pw / gs + 2, ph / gs + 2);
+    }
+    var g = this.g; g.save(); g.globalCompositeOperation = o.mode || 'multiply'; g.globalAlpha = o.alpha || 1;
+    g.drawImage(SCR, 0, 0, pw, ph, (bx - this.ox) * R, (by - this.oy) * R, pw, ph); g.restore();
+  };
+  // a solid fill straight on the target (for paper-white snow, window glass and the like)
+  Painter.prototype.fill = function (poly, col, a, j) {
+    var g = this.g, R = this.R, q = j ? deform(poly, 2, j, this.r) : poly;
+    g.save(); g.setTransform(R, 0, 0, R, -this.ox * R, -this.oy * R); this.path(g, q); g.fillStyle = rgba(col, a === undefined ? 1 : a); g.fill(); g.restore();
+  };
+  // ink: a slightly shaky pen line of varying weight
+  Painter.prototype.ink = function (pts, o) {
+    o = o || {}; var g = this.g, R = this.R, r = this.r, w = o.w || .42, j = o.j === undefined ? .16 : o.j, col = o.col || '#1d1815', a = o.a || .9;
+    var dense = [];
+    for (var i = 0; i < pts.length - 1; i++) { var p = pts[i], q = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 1.2)); for (var k = 0; k < n; k++) dense.push([p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n]); }
+    dense.push(pts[pts.length - 1]);
+    var wob = 0; g.save(); g.setTransform(R, 0, 0, R, -this.ox * R, -this.oy * R); g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = rgba(col, a);
+    var prev = null;
+    for (var t = 0; t < dense.length; t++) {
+      wob = wob * .7 + gauss(r) * j; var d = dense[t], cur = [d[0] + wob, d[1] + wob * .8];
+      if (prev) { g.beginPath(); g.moveTo(prev[0], prev[1]); g.lineTo(cur[0], cur[1]); g.lineWidth = w * (.8 + r() * .45) * (o.taper ? Math.min(1, t / 3, (dense.length - t) / 3) * .7 + .3 : 1); g.stroke(); }
+      prev = cur;
+    }
+    g.restore();
+  };
+
+  // ---------------------------------------------------------------- houses, after hand-inked watercolour sketches
+  var WALLS = ['#a8c48a', '#e9e6df', '#e9b95c', '#9fc2e2', '#f1b4ae', '#e8946c', '#c8dcbd', '#f0d9a8', '#b8b2d6'];
+  var ROOFS = ['#8e98a4', '#7f8995', '#d6a44e', '#c4664a', '#9a7b66', '#6f8f86'];
+  var DOORS = ['#c4472f', '#6d9b6a', '#557ca6', '#b98a5a', '#3f5d7a'];
+  function house(P, x, base, w, wh, r, opt) {
+    opt = opt || {};
+    var wall = opt.wall || pick(r, WALLS), roof = opt.roof || pick(r, ROOFS), kind = opt.kind || pick(r, ['gable', 'gable', 'gable', 'cone', 'hip', 'flat']), top = base - wh;
+    var rh = kind === 'flat' ? 1.6 : kind === 'cone' ? wh * (.8 + r() * .25) : wh * (.5 + r() * .22); if (opt.maxRoof) rh = Math.min(rh, opt.maxRoof - wh);
+    // chimney first, behind the roof
+    if (kind !== 'flat' && kind !== 'cone' && r() < .6) { var cx = x + w * (r() < .5 ? .22 : .7), cw = Math.max(1.6, w * .14); P.wash(rect(cx, top - rh * .95, cw, rh * .8), mix(roof, '#8a7a6a', .5), { layers: 7, a: .14, spread: .2 }); P.ink([[cx, top - rh * .2], [cx, top - rh * .95], [cx + cw, top - rh * .95], [cx + cw, top - rh * .35]], { w: .32 }); }
+    // walls: a wash, then shadow down one side and along the bottom
+    P.wash(rect(x, top, w, wh), wall, { layers: 10, a: .16, spread: .28, edge: .14 });
+    P.wash([[x + w * .7, top], [x + w, top], [x + w, base], [x + w * .74, base]], mix(wall, '#3a3a52', .35), { layers: 6, a: .07, spread: .35, edge: .04 });
+    P.wash(rect(x, base - wh * .3, w, wh * .3), '#7d6e62', { layers: 5, a: .05, spread: .4, edge: 0 });
+    if (r() < .5) P.wash(ellipse(x + w * (.25 + r() * .5), top + wh * (.3 + r() * .4), w * .22, wh * .16, 10, r, .2), mix(wall, '#6a8a4a', .35), { layers: 5, a: .06, spread: .5, edge: 0 }); // a mossy patch, like the sketches
+    // roof
+    var roofPoly, apex = [x + w / 2, top - rh];
+    if (kind === 'gable') roofPoly = [[x - .9, top], apex, [x + w + .9, top]];
+    else if (kind === 'cone') roofPoly = [[x - .6, top], [x + w / 2 - .4, top - rh], [x + w / 2 + .4, top - rh], [x + w + .6, top]];
+    else if (kind === 'hip') roofPoly = [[x - .8, top], [x + w * .28, top - rh], [x + w * .72, top - rh], [x + w + .8, top]];
+    else roofPoly = rect(x - .6, top - rh, w + 1.2, rh);
+    P.wash(roofPoly, roof, { layers: 10, a: .17, spread: .25, edge: .14 });
+    P.wash([[x + w * .5, top - rh], roofPoly[roofPoly.length - 1], [x + w * .5, top]], mix(roof, '#2f2f45', .4), { layers: 5, a: .06, spread: .3, edge: 0 });
+    P.wash(rect(x, top, w, 1.1), '#2f2a35', { layers: 4, a: .07, spread: .2, edge: 0 }); // shadow under the eaves
+    for (var s = 0; s < 3 + Math.floor(r() * 3) && kind !== 'flat'; s++) { var sx = x + w * (.2 + r() * .6), sy = top - rh * (.2 + r() * .45); P.ink([[sx, sy], [sx + 1.4 + r(), sy]], { w: .22, a: .6, j: .05 }); }
+    // windows: dark glass, white bars, an ink frame, sometimes a grey surround
+    var rows = Math.max(1, Math.floor((wh - 3.6) / 3.6)), cols = Math.max(1, Math.floor((w - 1.2) / 3.4)), ww = 1.8, whh = 2.2, gap = (w - cols * ww) / (cols + 1);
+    var doorCol = Math.floor(r() * cols);
+    for (var ry = 0; ry < rows + 1; ry++) for (var cxi = 0; cxi < cols; cxi++) {
+      var wx = x + gap + cxi * (ww + gap), wy = top + 1.6 + ry * 3.6;
+      if (ry === rows) { // ground floor: the door goes in one bay
+        if (cxi !== doorCol) { if (wy + whh < base - .8) win(P, wx, wy, ww, whh, r); continue; }
+        var dw = Math.min(2.4, ww + .6), dx = wx + ww / 2 - dw / 2, dh = Math.min(3.6, base - wy - .3);
+        P.wash(rect(dx - .4, base - dh - .4, dw + .8, dh + .4), '#9a948c', { layers: 4, a: .08, spread: .15, edge: 0 });
+        P.fill(rect(dx, base - dh, dw, dh), pick(r, DOORS), .85, .08);
+        P.ink([[dx, base], [dx, base - dh], [dx + dw, base - dh], [dx + dw, base]], { w: .26, j: .05 });
+        P.fill(rect(dx - .5, base - .2, dw + 1, .6), '#8d8a86', .6);
+        continue;
+      }
+      if (wy + whh < base - 3.2) win(P, wx, wy, ww, whh, r);
+    }
+    if (kind === 'gable' && wh > 9 && r() < .55) win(P, x + w / 2 - .9, top - rh * .62, 1.8, 2, r);
+    // the ink drawing over the paint, a little loose
+    P.ink([[x, base + .1], [x, top]], { w: .4 }); P.ink([[x + w, top], [x + w, base + .1]], { w: .4 });
+    if (kind === 'flat') P.ink([[x - .6, top - rh], [x + w + .6, top - rh], [x + w + .6, top], [x - .6, top], [x - .6, top - rh]], { w: .38 });
+    else P.ink(roofPoly.concat([roofPoly[0]]), { w: .4 });
+    P.ink([[x - .3, base + .1], [x + w + .3, base + .1]], { w: .34, a: .8 });
+  }
+  function win(P, x, y, w, h, r) {
+    if (r() < .45) P.wash(rect(x - .45, y - .45, w + .9, h + .9), '#9aa0a6', { layers: 3, a: .1, spread: .15, edge: 0 });
+    P.fill(rect(x, y, w, h), r() < .12 ? '#f2c75a' : '#1d2433', .9);
+    P.fill(rect(x + w / 2 - .14, y, .28, h), '#f5f0e6', .95); P.fill(rect(x, y + h * .45, w, .26), '#f5f0e6', .95);
+    P.ink([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]], { w: .18, a: .75, j: .04 });
+  }
+  function roundTree(P, x, base, s, r) {
+    P.ink([[x, base], [x + gauss(r) * .3, base - s * 1.2]], { w: .38, col: '#5a3d26', a: .85 });
+    var cy = base - s * 1.55;
+    P.wash(ellipse(x, cy, s, s * .92, 14, r, .12), pick(r, ['#9fcf5c', '#a9d46a', '#8cc152']), { layers: 10, a: .13, spread: .9, edge: .1 });
+    P.wash(ellipse(x + s * .25, cy + s * .25, s * .7, s * .6, 12, r, .15), '#4f8d35', { layers: 7, a: .08, spread: .8, edge: .05 });
+    P.wash(ellipse(x - s * .3, cy - s * .35, s * .38, s * .3, 10, r, .2), '#d6e98a', { layers: 4, a: .1, spread: .5, edge: 0 });
+    for (var k = 0; k < 2; k++) { var a0 = -2.6 + r() * 1.2; P.ink([[x + Math.cos(a0) * s * .8, cy + Math.sin(a0) * s * .8], [x + Math.cos(a0 + .5) * s * .95, cy + Math.sin(a0 + .5) * s * .95], [x + Math.cos(a0 + 1) * s * .8, cy + Math.sin(a0 + 1) * s * .8]], { w: .22, a: .55, j: .06 }); }
+  }
+  function groundShadow(P, x0, x1, base, r) { // the grey wash the houses sit on
+    P.wash([[x0 - 2, base - .8], [x1 + 3.5, base - 1.2], [x1 + 4.5, base + 2.2], [x0 + 1, base + 3]], '#8e959e', { layers: 12, a: .055, spread: 1.4, edge: .03 });
+  }
+  var CORNER = { w: 44, h: 29, base: 25 };
+  var corners = {};
+  function corner(seed) { // one corner of a tile: a terrace, a house with trees, or a clump of trees
+    var key = seed % 48; if (corners[key]) return corners[key];
+    var r = rng(key * 7919 + 13), RS = 4, c = canvas(CORNER.w * RS, CORNER.h * RS), P = new Painter(c, RS, 0, 0, key * 31 + 7), base = CORNER.base, k = r();
+    if (k < .5) { // a terrace of two or three houses, joined
+      var n = 2 + (r() < .5 ? 1 : 0), widths = [], tot = 0, i;
+      for (i = 0; i < n; i++) { widths.push(11 + r() * 4); tot += widths[i]; }
+      if (tot > 40) { var f = 40 / tot; widths = widths.map(function (v) { return v * f; }); tot = 40; }
+      var x = (CORNER.w - tot) / 2; groundShadow(P, x, x + tot, base, r);
+      for (i = 0; i < n; i++) { house(P, x, base, widths[i], 10.5 + r() * 3.5, r, { maxRoof: base - 1 }); x += widths[i]; }
+    } else if (k < .78) { // a house standing alone, with trees beside it
+      var hw = 13 + r() * 3.5, left = r() < .5, hx = left ? 4 : CORNER.w - hw - 4;
+      groundShadow(P, hx, hx + hw + 6, base, r);
+      house(P, hx, base, hw, 11 + r() * 3, r, { maxRoof: base - 1 });
+      var tx = left ? hx + hw + 5 : hx - 6; roundTree(P, tx, base, 3.4 + r() * 1.2, r); roundTree(P, tx + (left ? 6 : -6), base + .4, 2.8 + r(), r); if (r() < .6) roundTree(P, tx + (left ? 11 : -11), base, 2.6 + r(), r);
+    } else if (k < .93) { // a clump of trees
+      P.wash([[6, base - .5], [38, base - 1], [39, base + 2], [7, base + 2.5]], '#8e959e', { layers: 8, a: .045, spread: 1.2, edge: .02 });
+      var m = 3 + Math.floor(r() * 3); for (var t = 0; t < m; t++) roundTree(P, 9 + r() * 26, base - r() * 3, 3 + r() * 1.8, r);
+    } else return (corners[key] = null);
+    return (corners[key] = { url: toURL(c), w: CORNER.w, h: CORNER.h });
+  }
+  // the corners of a tile not crossed by a bend in its track
+  function decor(seed, trackDirs) {
+    var r = rng(seed), out = '', inner = {};
+    if (trackDirs && trackDirs.length === 2 && ((trackDirs[0] + 2) & 3) !== trackDirs[1]) { var a = trackDirs[0], b = trackDirs[1]; inner[(a === 0 && b === 1) || (a === 1 && b === 0) ? 0 : (a === 1 && b === 2) || (a === 2 && b === 1) ? 1 : (a === 2 && b === 3) || (a === 3 && b === 2) ? 2 : 3] = 1; }
+    var spots = [[0, -2.5], [56, -2.5], [56, 34.5], [0, 34.5]]; // TL TR BR BL
+    for (var q = 0; q < 4; q++) {
+      var k = Math.floor(r() * 100000); if (inner[q] || r() < .2) continue;
+      var s = corner(k); if (!s) continue;
+      out += '<image href="' + s.url + '" x="' + spots[q][0] + '" y="' + spots[q][1] + '" width="' + s.w + '" height="' + s.h + '" pointer-events="none"/>';
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------- landmark tiles
+  var obs = {};
+  function obstacle(t, seed) {
+    var key = t + (seed % 3); if (obs[key]) return obs[key];
+    var r = rng((seed % 3) * 101 + t.length * 7), RS = 4, c = canvas(100 * RS, 62 * RS), P = new Painter(c, RS, 0, 0, seed % 3 + 3);
+    if (t === 'lake') {
+      P.wash(ellipse(50, 33, 46, 27, 18, r, .07), '#b9d77a', { layers: 12, a: .07, spread: 3, edge: .04 });
+      var lake = ellipse(50, 32, 36, 19, 18, r, .1);
+      P.wash(lake, '#7cc0e3', { layers: 14, a: .13, spread: 1.6, edge: .16 });
+      P.wash(ellipse(50, 38, 30, 11, 14, r, .12), '#2f7fb0', { layers: 8, a: .07, spread: 1.6, edge: .04 });
+      P.ink(lake.concat([lake[0]]).slice(0, 14), { w: .55, a: .85 });
+      for (var i = 0; i < 4; i++) { var rx = 30 + r() * 36, ry = 24 + r() * 14; P.ink([[rx, ry], [rx + 3, ry - 1], [rx + 6, ry]], { w: .5, col: '#ffffff', a: .9, j: .05 }); }
+      for (i = 0; i < 6; i++) { var gx = 12 + r() * 76, gy = r() < .5 ? 12 + r() * 4 : 50 + r() * 4; P.ink([[gx, gy], [gx - .6, gy - 2.8]], { w: .3, col: '#4a6b2a', a: .7 }); P.ink([[gx + .8, gy], [gx + 1.4, gy - 2.4]], { w: .3, col: '#4a6b2a', a: .7 }); }
+      roundTree(P, 10, 58, 3, r); roundTree(P, 90, 16, 3.2, r);
+    } else if (t === 'park') {
+      P.wash(rect(6, 6, 88, 50), '#b5d66c', { layers: 14, a: .08, spread: 4, edge: .05 });
+      P.wash(rect(10, 30, 80, 24), '#7fb04a', { layers: 7, a: .05, spread: 4, edge: 0 });
+      P.wash([[4, 48], [30, 38], [60, 40], [96, 22], [96, 27], [62, 45], [32, 43], [6, 53]], '#e3c48f', { layers: 8, a: .12, spread: .8, edge: .08 });
+      var pond = ellipse(56, 28, 6, 4, 12, r, .1); P.wash(pond, '#7cc0e3', { layers: 8, a: .15, spread: .5, edge: .15 }); P.ink(pond.concat([pond[0]]), { w: .4 });
+      [[18, 22], [24, 26], [14, 30], [78, 44], [84, 40], [72, 18], [40, 52]].forEach(function (p) { roundTree(P, p[0], p[1] + 4, 3 + r() * 1.4, r); });
+    } else { // the arch
+      P.wash([[14, 46], [86, 46], [90, 54], [10, 54]], '#8e959e', { layers: 10, a: .06, spread: 1.4, edge: .03 });
+      P.wash(rect(20, 42, 60, 9), '#e2c9a2', { layers: 8, a: .14, spread: .4, edge: .12 });
+      var body = [[30, 44], [30, 16], [70, 16], [70, 44]];
+      P.wash(body, '#f0d6aa', { layers: 10, a: .17, spread: .35, edge: .14 });
+      P.wash([[60, 16], [70, 16], [70, 44], [60, 44]], '#b88a5a', { layers: 6, a: .08, spread: .35, edge: 0 });
+      var open = [[41, 44], [41, 32]].concat(cubic([41, 32], [41, 24], [59, 24], [59, 32], 10)).concat([[59, 44]]);
+      P.wash(open, '#6c5a4a', { layers: 8, a: .14, spread: .25, edge: .1 });
+      P.wash(rect(27, 11, 46, 6), '#e6c391', { layers: 8, a: .17, spread: .3, edge: .12 });
+      P.wash(rect(27, 16, 46, 1.6), '#5a4a3a', { layers: 4, a: .08, spread: .2, edge: 0 });
+      P.ink([[30, 44], [30, 17], [70, 17], [70, 44]], { w: .55 }); P.ink(open, { w: .5 }); P.ink([[27, 11], [73, 11], [73, 17], [27, 17], [27, 11]], { w: .5 });
+      for (var b = 0; b < 5; b++) { var by = 21 + b * 4.5; P.ink([[32, by], [38, by]], { w: .25, a: .5 }); P.ink([[62, by], [68, by]], { w: .25, a: .5 }); }
+      roundTree(P, 12, 46, 3.4, r); roundTree(P, 88, 46, 3.4, r); roundTree(P, 17, 50, 2.6, r);
+    }
+    return (obs[key] = toURL(c));
+  }
+  // a soft wash over a tile, in the owner's colour, for finished lines
+  var tints = {};
+  function tint(col, seed) {
+    var key = col + (seed % 3); if (tints[key]) return tints[key];
+    var RS = 2, c = canvas(100 * RS, 62 * RS), P = new Painter(c, RS, 0, 0, seed % 3 + 17);
+    P.wash(rect(5, 5, 90, 52), col, { layers: 12, a: .05, spread: 3, edge: .05 });
+    return (tints[key] = toURL(c));
+  }
+
+  // ---------------------------------------------------------------- the land around the city
+  var STAINS = ['#3fa3a6', '#4c72b8', '#d6708e', '#7aa64a', '#d39a35', '#8d6ab5', '#c0683c', '#4aa0d6', '#c75b6a', '#5b9f8a'];
+  function mountain(P, x, y, w, h, r) {
+    var px = x + gauss(r) * w * .07, py = y - h, g0 = pick(r, ['#b9d65c', '#a9cf55', '#c3dc69', '#a2c94f']);
+    var left = cubic([x - w * .58, y + 9], [x - w * .32, y - h * .32], [px - w * .17, py + h * .03], [px, py], 14);
+    var right = cubic([px, py], [px + w * .17, py + h * .03], [x + w * .32, y - h * .36], [x + w * .58, y + 9], 14);
+    left = left.map(function (p, i) { return i && i < 14 ? [p[0] + gauss(r) * .6, p[1] + gauss(r) * .6] : p; });
+    right = right.map(function (p, i) { return i && i < 14 ? [p[0] + gauss(r) * .6, p[1] + gauss(r) * .6] : p; });
+    var body = left.concat(right.slice(1));
+    P.wash(body, g0, { layers: 14, a: .11, spread: .9, edge: .07 });
+    P.wash(left.slice(4).concat([[px - w * .05, y]]).concat([[x - w * .3, y]]), '#e2ea8a', { layers: 6, a: .07, spread: 1.4, edge: 0 }); // sunlit side
+    var ridge = cubic([px, py], [px + w * .06, py + h * .35], [x + w * .02, y - h * .3], [x + w * .1, y + 9], 10);
+    P.wash(right.concat(ridge.slice().reverse()), '#4f8130', { layers: 12, a: .07, spread: 1.1, edge: .05 }); // shaded side
+    P.wash(right.slice(7).concat([[x + w * .2, y + 9]]), '#3a6a28', { layers: 6, a: .05, spread: 1.4, edge: 0 });
+    if (r() < .55) { // a brown rock face on the slope
+      var ox = x + (r() < .5 ? -1 : 1) * w * (.12 + r() * .14), oy = y - h * (.12 + r() * .25), ow = w * (.13 + r() * .08), oh = h * (.16 + r() * .1);
+      var crag = [[ox - ow / 2, oy + oh * .5], [ox - ow * .3, oy - oh * .5], [ox + ow * .15, oy - oh * .55], [ox + ow / 2, oy + oh * .4]];
+      P.wash(crag, '#d39a5c', { layers: 8, a: .15, spread: .4, edge: .12 });
+      P.wash([[ox + ow * .05, oy - oh * .5], [ox + ow * .15, oy - oh * .55], [ox + ow / 2, oy + oh * .4], [ox + ow * .1, oy + oh * .5]], '#8a5530', { layers: 6, a: .1, spread: .4, edge: .05 });
+      P.ink([[ox - ow / 2, oy + oh * .5], [ox - ow * .3, oy - oh * .5], [ox + ow * .15, oy - oh * .55], [ox + ow / 2, oy + oh * .4]], { w: .4, a: .8 });
+      P.ink([[ox - ow * .1, oy - oh * .2], [ox - ow * .15, oy + oh * .35]], { w: .28, a: .6 });
+    }
+    // the snow cap: paper white, with warm and cool shadow under its drips
+    var capH = h * (.3 + r() * .1), lcap = left.filter(function (p) { return p[1] <= py + capH; }), rcap = right.filter(function (p) { return p[1] <= py + capH; });
+    if (lcap.length > 1 && rcap.length > 1) {
+      var lx = lcap[0], rx = rcap[rcap.length - 1], drip = [], n = 3 + Math.floor(r() * 2);
+      for (var i = 1; i < n * 2; i++) { var t = i / (n * 2), xx = rx[0] + (lx[0] - rx[0]) * t, yy = rx[1] + (lx[1] - rx[1]) * t + (i % 2 ? h * (.06 + r() * .06) : -h * .01); drip.push([xx, yy]); }
+      var cap = lcap.concat(rcap.slice(1)).concat(drip);
+      P.fill(cap, '#fbf8f1', .97, .25);
+      P.wash(rcap.concat(drip.slice(0, n + 1)).concat([[px + w * .02, py + capH * .4]]), '#c39a78', { layers: 8, a: .1, spread: .5, edge: .06 });
+      P.wash(drip.map(function (p) { return [p[0], p[1] - h * .03]; }).concat(drip.slice().reverse().map(function (p) { return [p[0], p[1] - h * .09]; })), '#9fb1c8', { layers: 6, a: .07, spread: .5, edge: 0 });
+      P.ink(drip.concat([lx]), { w: .38, a: .7, taper: true });
+      if (r() < .3) { var ey = py + capH * .55; P.fill(ellipse(px - 1.6, ey, .55, .7, 8), '#1d1815', .9); P.fill(ellipse(px + 1.6, ey, .55, .7, 8), '#1d1815', .9); }
+    }
+    // ink on the slopes only, fading out before the ground
+    P.ink(left.slice(3, 15), { w: .55, taper: true }); P.ink(right.slice(0, 11), { w: .55, taper: true });
+    for (var k = 0; k < 3; k++) { var hx = x + w * (.12 + r() * .25), hy = y - h * (.15 + r() * .25); P.ink([[hx, hy], [hx + .6, hy + 2.2 + r() * 1.5]], { w: .3, a: .45, j: .05 }); }
+  }
+  function pines(P, x, y, n, r) {
+    var trees = [];
+    for (var i = 0; i < n; i++) trees.push([x + gauss(r) * n * 1.4, y + gauss(r) * n * .5, 3.2 + r() * 3]);
+    trees.sort(function (a, b) { return a[1] - b[1]; });
+    trees.forEach(function (t) {
+      var tx = t[0], ty = t[1], s = t[2], hw = s * .38, poly = [[tx, ty - s * 2]];
+      for (var k = 1; k <= 3; k++) poly.push([tx + hw * k / 3 + .4, ty - s * 2 + s * 2 * k / 3], [tx + hw * k / 3 * .45, ty - s * 2 + s * 2 * k / 3 - .3]);
+      poly.push([tx, ty]);
+      for (k = 3; k >= 1; k--) poly.push([tx - hw * k / 3 * .45, ty - s * 2 + s * 2 * k / 3 - .3], [tx - hw * k / 3 - .4, ty - s * 2 + s * 2 * k / 3]);
+      P.wash(poly, '#2f6b3a', { layers: 4, a: .3, spread: .15, edge: .2, depth: 2 });
+      P.wash([[tx, ty - s * 2], [tx + hw + .4, ty], [tx, ty]], '#16391f', { layers: 3, a: .12, spread: .15, edge: 0, depth: 2 });
+    });
+  }
+  function boulder(P, x, y, s, r) {
+    var b = ellipse(x, y - s * .45, s, s * .65, 10, r, .12);
+    P.wash(ellipse(x + s * .4, y + .2, s * 1.2, s * .35, 8, r), '#5e6a4a', { layers: 5, a: .06, spread: .4, edge: 0 });
+    P.wash(b, '#c8a77e', { layers: 6, a: .16, spread: .3, edge: .12 });
+    P.wash(b.slice(10).concat(b.slice(0, 4)), '#7a5a3e', { layers: 4, a: .08, spread: .3, edge: 0 });
+    P.ink(b.slice(4, 11), { w: .38, a: .8 });
+  }
+  function cloud(P, x, y, w, r) {
+    var n = 3 + Math.floor(r() * 3), pts = [[x - w / 2, y]], i;
+    var bumps = []; for (i = 0; i < n; i++) bumps.push([x - w / 2 + w * (i + .5) / n, w / n * (.55 + r() * .35)]);
+    bumps.forEach(function (b, i) { var rad = b[1], cx = b[0], cy = y - rad * (.35 + (i === 0 || i === n - 1 ? 0 : r() * .5)); for (var a = Math.PI; a <= Math.PI * 2.001; a += Math.PI / 7) pts.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]); });
+    pts.push([x + w / 2, y]); var bottom = []; for (i = 6; i >= 0; i--) bottom.push([x - w / 2 + w * i / 6, y + 1.5 + Math.sin(i / 6 * Math.PI) * 1.5]);
+    var poly = pts.concat(bottom);
+    P.fill(poly, '#fcfaf4', .98, .3);
+    P.wash(bottom.concat(bottom.slice().reverse().map(function (p) { return [p[0], p[1] - w * .13]; })), '#c79f80', { layers: 10, a: .1, spread: .8, edge: .05 });
+    P.wash(bottom.slice(0, 4).concat(bottom.slice(0, 4).reverse().map(function (p) { return [p[0], p[1] - w * .07]; })), '#97a7c2', { layers: 6, a: .07, spread: .6, edge: 0 });
+    P.ink(pts.slice(1, pts.length - 1), { w: .45, a: .8, taper: true });
+  }
+  function softLayer(c, R, x0, y0, seed, paintFn) { // big soft washes, painted at low resolution then laid on with the paper's grain
+    var k = .22, lo = canvas(c.width * k, c.height * k), LP = new Painter(lo, R * k, x0, y0, seed); LP.gs = 1e9; paintFn(LP, lo);
+    var full = canvas(c.width, c.height), fg = full.getContext('2d'); fg.imageSmoothingEnabled = true; fg.drawImage(lo, 0, 0, c.width, c.height);
+    fg.globalCompositeOperation = 'destination-in'; var gs = Math.max(.6, R * .42); fg.setTransform(gs, 0, 0, gs, 0, 0); fg.fillStyle = fg.createPattern(grainMask(), 'repeat'); fg.fillRect(0, 0, c.width / gs + 1, c.height / gs + 1);
+    var g = c.getContext('2d'); g.save(); g.globalCompositeOperation = 'multiply'; g.drawImage(full, 0, 0); g.restore();
+  }
+  // the whole table under the tiles: paper, this game's stain, green land, mountains, trees, rocks and clouds
+  function background(spec) {
+    var r = rng(spec.seed), W = spec.W, H = spec.H, x0 = spec.x0, y0 = spec.y0, x1 = spec.x1, y1 = spec.y1;
+    var R = Math.min(2, Math.sqrt(4.2e6 / ((x1 - x0) * (y1 - y0)))), c = canvas((x1 - x0) * R, (y1 - y0) * R), g = c.getContext('2d');
+    fillPaper(g, c.width, c.height, Math.max(.8, R * .55));
+    var P = new Painter(c, R, x0, y0, spec.seed + 1), cells = spec.cells, inside = {};
+    cells.forEach(function (q) { inside[q[0] + ',' + q[1]] = 1; });
+    var bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9; cells.forEach(function (q) { bx0 = Math.min(bx0, q[0] * W); by0 = Math.min(by0, q[1] * H); bx1 = Math.max(bx1, q[0] * W + W); by1 = Math.max(by1, q[1] * H + H); });
+    // this game's stain: a broad soft bloom and a deeper blot with a hard, cauliflowered edge
+    var hue = STAINS[Math.floor(r() * STAINS.length)], bw = bx1 - bx0, bh = by1 - by0;
+    var sx = bx0 + bw * (.2 + r() * .6), sy = by0 + bh * (.2 + r() * .6);
+    var kx = bx0 + bw * (r() < .5 ? .08 + r() * .2 : .72 + r() * .2), ky = by0 + bh * (.1 + r() * .8);
+    softLayer(c, R, x0, y0, spec.seed + 3, function (S2) {
+      S2.wash(ellipse(sx, sy, bw * (.42 + r() * .2), bh * (.42 + r() * .2), 16, r, .18), hue, { layers: 18, a: .02, spread: 30, edge: .012, edgeW: 3, grain: false });
+      S2.wash(ellipse(sx + bw * (r() - .5) * .5, sy + bh * (r() - .5) * .5, bw * .26, bh * .24, 14, r, .2), hue, { layers: 14, a: .028, spread: 22, edge: .02, edgeW: 2, grain: false });
+      S2.wash(ellipse(kx, ky, 34 + r() * 20, 30 + r() * 18, 16, r, .22), hue, { layers: 16, a: .05, spread: 9, edge: .07, edgeW: 1.4, grain: false });
+    });
+    for (var sp = 0; sp < 14; sp++) { var dx = kx + gauss(r) * 60, dy = ky + gauss(r) * 40, dr = .6 + r() * 2.2; P.wash(ellipse(dx, dy, dr, dr, 8, r, .15), hue, { layers: 3, a: .25, spread: .2, edge: .2 }); }
+    // green land outside the walls, fading raggedly into the paper
+    var LK = .25, land = canvas(c.width * LK, c.height * LK), lg = land.getContext('2d'), LP = new Painter(land, R * LK, x0, y0, spec.seed + 2); LP.gs = 1e9;
+    LP.wash(rect(x0 - 20, y0 - 20, x1 - x0 + 40, y1 - y0 + 40), '#b7d567', { layers: 8, a: .1, spread: 12, edge: 0, mode: 'source-over', grain: false });
+    for (var pp = 0; pp < 16; pp++) LP.wash(ellipse(x0 + r() * (x1 - x0), y0 + r() * (y1 - y0), 40 + r() * 70, 25 + r() * 45, 12, r, .25), pick(r, ['#8fbf4a', '#d2df78', '#a3cb57']), { layers: 6, a: .06, spread: 10, edge: 0, mode: 'source-over', grain: false });
+    var R0 = R; R = R * LK;
+    lg.save(); lg.globalCompositeOperation = 'destination-in'; lg.setTransform(R, 0, 0, R, -x0 * R, -y0 * R);
+    var keep = new Path2D(); cells.forEach(function (q) { var e = 70 + r() * 26; keep.rect(q[0] * W - e, q[1] * H - e, W + e * 2, H + e * 2); });
+    lg.fillStyle = '#000'; lg.shadowColor = '#000'; lg.shadowBlur = 34 * R; lg.fill(keep); lg.restore();
+    lg.save(); lg.globalCompositeOperation = 'destination-out'; lg.setTransform(R, 0, 0, R, -x0 * R, -y0 * R); cells.forEach(function (q) { lg.fillRect(q[0] * W - 1, q[1] * H - 1, W + 2, H + 2); }); lg.restore();
+    R = R0;
+    var lf = canvas(c.width, c.height), lfg = lf.getContext('2d'); lfg.drawImage(land, 0, 0, c.width, c.height);
+    lfg.globalCompositeOperation = 'destination-in'; var gs2 = Math.max(.6, R * .42); lfg.setTransform(gs2, 0, 0, gs2, 0, 0); lfg.fillStyle = lfg.createPattern(grainMask(), 'repeat'); lfg.fillRect(0, 0, c.width / gs2 + 1, c.height / gs2 + 1);
+    g.save(); g.globalCompositeOperation = 'multiply'; g.drawImage(lf, 0, 0); g.restore();
+    // mountains stand on the land around the walls; trees cluster and rocks sit between them
+    var items = [];
+    cells.forEach(function (q) {
+      var cx0 = q[0] * W, cy0 = q[1] * H;
+      [[0, -1, cx0, cy0, cx0 + W, cy0], [0, 1, cx0, cy0 + H, cx0 + W, cy0 + H], [-1, 0, cx0, cy0, cx0, cy0 + H], [1, 0, cx0 + W, cy0, cx0 + W, cy0 + H]].forEach(function (e) {
+        if (inside[(q[0] + e[0]) + ',' + (q[1] + e[1])]) return;
+        var nx = e[0], ny = e[1], len = Math.hypot(e[4] - e[2], e[5] - e[3]), ux = (e[4] - e[2]) / len, uy = (e[5] - e[3]) / len;
+        for (var t = 8 + r() * 10; t < len; t += (ny ? 34 : 26) + r() * 14) {
+          var w = 48 + r() * 30, h = 30 + r() * 24, ex = e[2] + ux * t, ey = e[3] + uy * t, mx, my;
+          if (ny < 0) { mx = ex; my = ey - 3 - r() * 5; } else if (ny > 0) { mx = ex; my = ey + h + 6 + r() * 4; } else { mx = ex + nx * (w * .5 + 4 + r() * 6); my = ey + h * .5; }
+          items.push({ y: my, f: (function (a, b, c2, d) { return function () { mountain(P, a, b, c2, d, r); }; })(mx, my, w, h) });
+          var far = 28 + r() * 30, fx = mx + nx * far + (ny ? gauss(r) * 20 : 0), fy = my + ny * far * .7 + (nx ? gauss(r) * 14 : 6 + r() * 8);
+          if (r() < .55) items.push({ y: fy, f: (function (a, b, n) { return function () { pines(P, a, b, n, r); }; })(fx, fy, 4 + Math.floor(r() * 7)) });
+          if (r() < .3) items.push({ y: fy + 5, f: (function (a, b, s) { return function () { boulder(P, a, b, s, r); }; })(mx + gauss(r) * w * .5, my + 4 + r() * 6, 1.6 + r() * 2.2) });
+        }
+      });
+    });
+    P.lf = .55; P.depth = 2; var tM = performance.now(); items.sort(function (a, b) { return a.y - b.y; }).forEach(function (it) { it.f(); }); window.__mtnMs = performance.now() - tM; window.__mtnN = items.length; P.lf = 1; P.depth = 0;
+    // clouds drifting over the ranges
+    var nC = 3 + Math.floor(r() * 3);
+    for (var ci = 0; ci < nC; ci++) {
+      var side = Math.floor(r() * 4), cxp, cyp;
+      if (side === 0) { cxp = bx0 + r() * bw; cyp = by0 - 40 - r() * 30; } else if (side === 1) { cxp = bx0 + r() * bw; cyp = by1 + 70 + r() * 20; }
+      else if (side === 2) { cxp = bx0 - 55 - r() * 20; cyp = by0 + r() * bh; } else { cxp = bx1 + 55 + r() * 20; cyp = by0 + r() * bh; }
+      cloud(P, cxp, cyp, 36 + r() * 26, r);
+    }
+    return { url: toURL(c), x: x0, y: y0, w: x1 - x0, h: y1 - y0, hue: hue };
+  }
+
+  root.Paint = { paperURL: paperURL, decor: decor, obstacle: obstacle, tint: tint, background: background };
+})(window);
 
 </script>
 <script>
@@ -839,8 +1259,8 @@ body.city #market .mlabel { font-weight: 400; }
     return s;
   }
   function obstacleTile(t, seed, v) {
-    var r = srand(seed), s = '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + (t === 'lake' ? '#cfe8f3' : t === 'park' ? '#cfe3b8' : '#ece4d4') + '" stroke="#b9c3c8" stroke-width="1.2"/>';
-    if (t === 'lake') {
+    var r = srand(seed), s = CITY && window.Paint ? '<image href="' + Paint.obstacle(t, seed >>> 0) + '" x="0" y="0" width="100" height="62"/>' : '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + (t === 'lake' ? '#cfe8f3' : t === 'park' ? '#cfe3b8' : '#ece4d4') + '" stroke="#b9c3c8" stroke-width="1.2"/>';
+    if (CITY && window.Paint) { /* painted */ } else if (t === 'lake') {
       s += '<path d="M14 30 C14 12 40 8 54 12 C74 6 90 18 86 32 C92 48 66 56 48 52 C28 58 12 46 14 30 Z" fill="#4ea8de" stroke="#2a6f97" stroke-width="2"/>';
       s += '<path d="M30 26 q6 -3 12 0 M52 36 q6 -3 12 0 M40 44 q5 -2.5 10 0" stroke="#cfeaf7" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
       s += tree(10, 52, 3.5) + tree(90, 10, 3.5);
@@ -859,11 +1279,11 @@ body.city #market .mlabel { font-weight: 400; }
       var at = [[13, 31], [50, 12], [87, 31], [50, 50]];
       for (var d = 0; d < 4; d++) if (v.plat[d]) s += '<rect x="' + (at[d][0] - 9) + '" y="' + (at[d][1] - 7) + '" width="18" height="14" rx="4" fill="#fff" stroke="' + INK + '" stroke-width="2.6"/><circle cx="' + at[d][0] + '" cy="' + at[d][1] + '" r="3.6" fill="' + v.plat[d] + '" stroke="' + INK + '" stroke-width="1.1"/>';
     }
-    if (v && v.claim >= 0) s += '<path d="M86 50 V36" stroke="' + INK + '" stroke-width="1.6"/><path d="M86 36 L96 39.5 L86 43 Z" fill="' + COL[v.claim] + '" stroke="' + INK + '" stroke-width="1.1"/><text class="lbl" x="77" y="48" font-size="9" text-anchor="middle" fill="' + INK + '">+3</text>';
+    if (v && v.claim >= 0) s += '<path d="M86 50 V36" stroke="' + INK + '" stroke-width="1.6"/><path d="M86 36 L96 39.5 L86 43 Z" fill="' + COL[v.claim] + '" stroke="' + INK + '" stroke-width="1.1"/><text class="lbl" x="77" y="48" font-size="9" text-anchor="middle" fill="' + INK + '">+1</text>';
     return s;
   }
   // v: {t, rot, col, lock, broken, frozen, plat[4], gold[4], penn[4]}
-  function paintTile(v) { var s = paintTile0(v); return CITY ? wc(s) + '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="url(#grain' + (((v.seed || 0) >>> 0) % 3) + ')" pointer-events="none"/>' : s; }
+  function paintTile(v) { var s = paintTile0(v); return CITY ? wc(s) + (v.onBoard ? '' : '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="url(#grain' + (((v.seed || 0) >>> 0) % 3) + ')" pointer-events="none"/>') : s; }
   function paintTile0(v) {
     var def = E.DEFS[v.t], kind = def.kind, fill = v.lock || PAPER, s, d;
     if (kind === 'obstacle') return obstacleTile(v.t, v.seed || 1, v);
@@ -880,9 +1300,15 @@ body.city #market .mlabel { font-weight: 400; }
       }
       return s + '<circle cx="50" cy="31" r="15.5" fill="#fff" stroke="' + INK + '" stroke-width="4"/><polygon points="' + star(50, 31, 10, 4.3, 5) + '" fill="#e9b200" stroke="' + INK + '" stroke-width="1.3" stroke-linejoin="round"/>';
     }
-    s = '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + fill + '" stroke="#c3ccd1" stroke-width="1.2"/>';
-    if (MAP && v.seed) s += cityDecor(v.seed);
     var td = dirsOfEdges(def.edges, v.rot, 't'), pdirs = dirsOfEdges(def.edges, v.rot, 'p');
+    if (CITY && v.onBoard && window.Paint) {
+      s = '<rect x="1.5" y="1.5" width="97" height="59" rx="4" fill="none" stroke="rgba(80,64,50,.2)" stroke-width=".7"/>';
+      if (v.lock) s += '<image href="' + Paint.tint(v.col, v.seed >>> 0) + '" x="0" y="0" width="100" height="62"/>';
+      if (v.seed) s += Paint.decor(v.seed >>> 0, td);
+    } else {
+      s = '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + fill + '" stroke="#c3ccd1" stroke-width="1.2"/>';
+      if (MAP && v.seed) s += cityDecor(v.seed);
+    }
     if (td.length) {
       s += rail(trackD(td), (v.broken || v.frozen) ? FROZEN : v.col, kind === 'bridge', !!v.lock);
       if (v.broken) s += burst(midOf(td), fill);
@@ -906,7 +1332,7 @@ body.city #market .mlabel { font-weight: 400; }
   function viewOf(board, an, e, ovOwner, ovUnlock) {
     var k = E.key(e.x, e.y), L = E.hasTrack(e.t) ? E.lineAt(an, e.x, e.y) : null;
     var own = ovOwner && ovOwner.has(k) ? ovOwner.get(k) : e.o, locked = !!e.lk && !(ovUnlock && ovUnlock.has(k));
-    var v = { seed: (e.x * 73856093) ^ (e.y * 19349663) ^ 0x5bd1e995, t: e.t, rot: e.rot, col: own >= 0 ? COL[own] : NEUTRAL, lock: locked && own >= 0 ? PALE[own] : null, broken: !!e.br, frozen: !!(L && L.frozen), plat: [null, null, null, null], gold: [false, false, false, false], penn: null };
+    var v = { onBoard: true, seed: (e.x * 73856093) ^ (e.y * 19349663) ^ 0x5bd1e995, t: e.t, rot: e.rot, col: own >= 0 ? COL[own] : NEUTRAL, lock: locked && own >= 0 ? PALE[own] : null, broken: !!e.br, frozen: !!(L && L.frozen), plat: [null, null, null, null], gold: [false, false, false, false], penn: null };
     if (E.DEFS[e.t].kind === 'obstacle') {
       v.claim = S && S.claims && S.claims[k] !== undefined ? S.claims[k] : -1;
       for (var dd = 0; dd < 4; dd++) { var nn = board.get(E.key(e.x + E.DX[dd], e.y + E.DY[dd])); if (nn && E.hasTrack(nn.t) && nn.mkd && nn.mkd.indexOf(E.opp(dd)) >= 0) { var ll = E.lineAt(an, nn.x, nn.y); v.plat[dd] = ll && ll.frozen ? FROZEN : COL[ovOwner && ovOwner.has(E.key(nn.x, nn.y)) ? ovOwner.get(E.key(nn.x, nn.y)) : nn.o]; } }
@@ -987,14 +1413,29 @@ body.city #market .mlabel { font-weight: 400; }
   }
   function cityArt() {
     document.body.classList.add('city');
-    var paper = paperTex(); if (paper) document.body.style.setProperty('--paper', 'url(' + paper + ')');
+    var paper = window.Paint ? Paint.paperURL() : paperTex(); if (paper) document.body.style.setProperty('--paper', 'url(' + paper + ')');
     var defs = '<defs><filter id="inkwob" x="-3%" y="-3%" width="106%" height="106%"><feTurbulence type="fractalNoise" baseFrequency=".045" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="3" xChannelSelector="R" yChannelSelector="G"/></filter>';
     for (var i = 0; i < 3; i++) { var u = washTex(11 + i * 7); if (u) defs += '<pattern id="grain' + i + '" patternUnits="userSpaceOnUse" width="100" height="62"><image href="' + u + '" width="100" height="62" preserveAspectRatio="none"/></pattern>'; }
     svg.insertAdjacentHTML('afterbegin', defs + '</defs>');
-    tilesG.setAttribute('filter', 'url(#inkwob)');
+    viewG.insertAdjacentHTML('afterbegin', '<g id="bg"></g>');
     BACK = wc(BACK);
   }
 
+  var bgKey = '';
+  function cityBackground() {
+    if (!window.Paint || !S) return;
+    var X = E.extent(); if (!X) return;
+    if (S.artSeed === undefined) { var hsh = 7; S.board.forEach(function (e, k) { for (var i = 0; i < k.length; i++) hsh = (hsh * 31 + k.charCodeAt(i)) | 0; }); S.artSeed = hsh >>> 0; }
+    var key = S.artSeed + ':' + [X.x0, X.y0, X.x1, X.y1].join() + ':' + (S.mask ? S.mask.length : 0); if (key === bgKey) return; bgKey = key;
+    var g = document.getElementById('bg'); if (!g) return;
+    var cells = []; for (var x = X.x0; x <= X.x1; x++) for (var y = X.y0; y <= X.y1; y++) if (!E.outside(x, y)) cells.push([x, y]);
+    var M = 170, spec = { seed: S.artSeed, W: W, H: H, cells: cells, x0: X.x0 * W - M, y0: X.y0 * H - M, x1: (X.x1 + 1) * W + M, y1: (X.y1 + 1) * H + M };
+    setTimeout(function () { // paint after the board is on screen
+      if (bgKey !== key) return;
+      var t0 = performance.now(), b = Paint.background(spec); window.__paintMs = performance.now() - t0;
+      if (bgKey === key) g.innerHTML = '<image href="' + b.url + '" x="' + b.x + '" y="' + b.y + '" width="' + b.w + '" height="' + b.h + '" preserveAspectRatio="none"/>';
+    }, 30);
+  }
   // ------------------------------------------------------------ city: trains run hub to hub along every route of a finished line, then vanish into the station
   var ctrains = new Map(), lastNow = 0;
   function cityRoutes(L) {
@@ -1230,7 +1671,7 @@ body.city #market .mlabel { font-weight: 400; }
       sh += '<rect x="' + (px + 1.5) + '" y="' + (py + 4.5) + '" width="97" height="59" rx="8"/>';
       tl += '<g class="tile" data-k="' + k + '" transform="translate(' + px + ' ' + py + ')">' + g + '</g>';
     });
-    shadowG.innerHTML = sh; tilesG.innerHTML = tl; buildTrains();
+    shadowG.innerHTML = CITY ? '' : sh; tilesG.innerHTML = tl; buildTrains(); if (CITY) cityBackground();
     renderMarks();
   }
   function myTurn() { return !!S && !S.over && !ui.busy && !ui.cover && S.turn === viewP && !isBot(viewP); }
@@ -1291,7 +1732,7 @@ body.city #market .mlabel { font-weight: 400; }
       return out;
     }
     var floor = '', ridge = '', peaks = '';
-    if (CITY) { peaks = wcBorder(cells, r); cells = []; }
+    if (CITY) cells = [];
     cells.forEach(function (c) {
       var x0 = c[0] * W, y0 = c[1] * H;
       floor += '<rect x="' + (x0 + 1) + '" y="' + (y0 + 1) + '" width="' + (W - 2) + '" height="' + (H - 2) + '" rx="6" fill="rgba(255,255,255,.05)"/>';
@@ -1400,7 +1841,7 @@ body.city #market .mlabel { font-weight: 400; }
   function says(ev) {
     var B = tag(ev.player) + ' ', f, k;
     if (ev.type === 'take') return B + (ev.blind ? 'drew blind.' : 'took a face-up tile.');
-    var extra = (ev.marks && ev.marks.length ? ' Built a landmark station: <b class="hi">+3</b>.' : '') + (ev.express ? ' Express: <b class="hi">+' + ev.express + '</b>.' : '') + (ev.first ? ' First line finished: <b class="hi">+3</b>.' : '');
+    var extra = (ev.marks && ev.marks.length ? ' Built a landmark station: <b class="hi">+1</b>.' : '') + (ev.expressLine ? ' An express line, across the map.' : '') + (ev.first ? ' First line finished: <b class="hi">+3</b>.' : '');
     if (extra && ev.type !== 'swap' && ev.type !== 'pass') return says2(ev) + extra;
     if (ev.type === 'swap') return B + 'traded in tiles.';
     if (ev.type === 'pass') return B + 'passed.';
@@ -1458,13 +1899,19 @@ body.city #market .mlabel { font-weight: 400; }
     }
     viewP = p; beginTurn();
   }
-  function next() { snapshot(); if (S.over) return endGame(); var p = S.turn; if (cfg.seats[p] === 'remote') return waitRemote(p); if (isBot(p)) botTurn(p); else humanTurn(p); }
+  function next() { snapshot(); if (!S.over && $('scoresBtn')) $('scoresBtn').style.display = 'none'; if (S.over) return endGame(); var p = S.turn; if (cfg.seats[p] === 'remote') return waitRemote(p); if (isBot(p)) botTurn(p); else humanTurn(p); }
   function botTurn(p) {
     ui.busy = true; planRefresh(); setStatus(tag(p) + ' is thinking…' + (canPlan() ? ' Pick a tile to plan your next move.' : '')); renderScores(); renderAll();
     pause(animOn ? 650 : 120).then(function () {
       var m = Bot.choose(S, p, cfg.seats[p]), ev = m ? E.applyMove(S, p, { type: m.type, i: m.i, t: m.t, rot: m.rot, x: m.x, y: m.y }) : (S.bag.length ? E.tradeHand(S, p) : E.pass(S, p));
-      if (S.drawFor === p) E.takeTile(S, p, Bot.pick(S, p));
-      note(ev); net.cast(ev); return playEvent(ev).then(next);
+      note(ev); net.cast(ev); return playEvent(ev).then(function () {
+        if (S.drawFor !== p) return next();
+        // show the bot's pick from the face-up row for a moment, then take it
+        var pk = Bot.pick(S, p); renderScores(); renderAll();
+        var b = pk >= 0 ? $('mk' + pk) : $('blind'); if (b) b.classList.add('pick');
+        setStatus(tag(p) + (pk >= 0 ? ' takes a face-up tile.' : ' draws blind.'));
+        return pause(animOn ? 1100 : 300).then(function () { var ev2 = E.takeTile(S, p, pk); note(ev2); net.cast(ev2); renderScores(); renderAll(); return pause(animOn ? 350 : 60); }).then(next);
+      });
     });
   }
   function hintFor(t) {
@@ -1564,7 +2011,7 @@ body.city #market .mlabel { font-weight: 400; }
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (CITY ? '<li><b>Landmarks:</b> track can never run into a park, lake or arch. Lay track alongside one instead: the first track tile laid next to it gets a station there. That player scores +3 at once and keeps it, and the station counts for the line that runs past it, without closing the line. Each landmark has only one station.</li><li><b>Bonuses:</b> +5 for a finished line with tunnels on two different mountain faces (an express). +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind.</li>' : '') +
+    (CITY ? '<li><b>Landmarks:</b> track can never run into a park, lake or arch. Lay track alongside one instead: the first track tile laid next to it gets a station there, and that player scores +1 at once and keeps it. Trains stop there, but it does not close the line and does not multiply the line\'s score. Each landmark has only one station.</li><li><b>Bonuses:</b> An express is a finished line with tunnels on two different mountain faces. At the end, +5 goes to one player only: whoever has the longest express line. +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles or draw blind. Drawing blind also slides the oldest face-up tile back into the bag and turns up a new one.</li>' : '') +
     (MAP ? '<li><b>The mountains:</b> the board is a 7 by 7 rectangle or a random shape, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li>' + (CITY ? '' : '<li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>') : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
     '</ol>';
@@ -1618,10 +2065,12 @@ body.city #market .mlabel { font-weight: 400; }
     var rows = S.lines.map(function (l) { var c = ''; for (var q = 0; q < S.n; q++) c += '<td>' + (l.o === q ? l.pts : '') + '</td>'; return '<tr><td>' + l.track + ' track × ' + Math.max(1, l.platforms) + ' stations</td>' + c + '</tr>'; }).join('');
     setStatus('Game over. ' + w + '.');
     sheet('<h1>' + w + '</h1><p class="sub">' + S.moveNo + ' tiles were laid.</p><table class="res"><tr><th>Finished lines</th>' + head + '</tr>' + rows + bonusRows() + '<tr><td>Unfinished track (scores nothing)</td>' + un + '</tr><tr class="tot"><td>Total</td>' + tot + '</tr></table><div class="sheetbar"><button type="button" class="btn primary" id="newBtn">Play again</button><button type="button" class="btn" id="closeBtn">Look at the board</button></div>');
+    ui.endSheet = $('overlay').innerHTML; showScoresBtn(true);
     snapshot();
   }
+  function showScoresBtn(on) { var b = $('scoresBtn'); if (!b) { $('zoom').insertAdjacentHTML('afterbegin', '<button type="button" id="scoresBtn" aria-label="Show the scores" style="width:auto;padding:0 10px;font-size:14px">Scores</button>'); b = $('scoresBtn'); b.addEventListener('click', function () { if (ui.endSheet && S && S.over) { $('overlay').innerHTML = ui.endSheet; $('overlay').className = 'on'; } }); } b.style.display = on ? '' : 'none'; }
   function bonusRows() {
-    var names = { landmark: 'Landmarks reached first', express: 'Express lines', first: 'First line finished', longest: 'Longest finished line', stations: 'Most stations' }, h = '';
+    var names = { landmark: 'Landmarks reached first', express: 'Longest express line', first: 'First line finished', longest: 'Longest finished line', stations: 'Most stations' }, h = '';
     Object.keys(names).forEach(function (k) { var arr = S.bonus && S.bonus[k]; if (!arr) return; var c = ''; for (var q = 0; q < S.n; q++) c += '<td>' + (arr[q] || '') + '</td>'; h += '<tr><td>' + names[k] + '</td>' + c + '</tr>'; });
     return h;
   }
@@ -1629,7 +2078,7 @@ body.city #market .mlabel { font-weight: 400; }
   function startGame() {
     net.reset(); readVariantOpts(); var np = document.querySelector('input[name="np"]:checked'); cfg.n = np ? +np.value : 2;
     for (var p = 0; p < 4; p++) { var sel = $('seat' + p); if (sel) cfg.seats[p] = sel.value; }
-    setPalette(randomPalette()); S = E.newGame(gameOpts(cfg.n)); started = true; lastBounds = ''; feed = []; setSole();
+    setPalette(randomPalette()); S = E.newGame(gameOpts(cfg.n)); if (CITY) S.artSeed = Math.floor(Math.random() * 1e9); started = true; lastBounds = ''; feed = []; setSole();
     hideSheet(); fit(true, true); renderScores(); ui.cover = false; next();
   }
 
@@ -1832,7 +2281,7 @@ body.city #market .mlabel { font-weight: 400; }
     net.conns.forEach(function (c, i) { c.seat = i + 1; names[i + 1] = c.name; });
     for (p = 1 + k; p < total; p++) names[p] = 'Bot ' + (p - k);
     net.names = names; net.lobby = false; net.waiting = false; net.pending = null;
-    setPalette(randomPalette()); S = E.newGame(gameOpts(total)); started = true; lastBounds = ''; feed = []; sole = 0; viewP = 0; ui.cover = false;
+    setPalette(randomPalette()); S = E.newGame(gameOpts(total)); if (CITY) S.artSeed = Math.floor(Math.random() * 1e9); started = true; lastBounds = ''; feed = []; sole = 0; viewP = 0; ui.cover = false;
     hideSheet(); fit(true, true); renderScores(); net.cast(null); next();
   }
   function seatToken(code) {
