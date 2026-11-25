@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261125-1908";
+window.RL_BUILD = "20261125-1910";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -282,7 +282,7 @@ body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outl
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261125-1908</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261125-1910</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -1470,7 +1470,7 @@ window.RL_TUNNELS = [{"u": "data:image/webp;base64,UklGRgg0AABXRUJQVlA4WAoAAAAQA
       PARKS[key] = toURL(c);
     }
     var r2 = rng((seed >>> 0) * 7 + 3), out = '<image href="' + PARKS[key] + '" x="0" y="0" width="100" height="62" pointer-events="none"/>';
-    var M = lib('RL_MONUMENTS'); if (M.length) { var m = M[(mi === undefined ? seed >>> 0 : mi) % M.length], sc = Math.min(37 / m.b, 66 / m.w); out += svgImg(m, 50 - m.w * sc / 2, 36 - m.b * sc, sc, false); }
+    var M = lib('RL_MONUMENTS'); if (M.length) { var m = M[(mi === undefined ? seed >>> 0 : mi) % M.length], sc = Math.min((m.name === 'clocktower' ? 52 : 37) / m.b, 66 / m.w); out += svgImg(m, 50 - m.w * sc / 2, 36 - m.b * sc, sc, false); }
     var T = lib('RL_TREES'), RK = lib('RL_ROCKS');
     [[13, 22], [87, 22], [13, 56], [87, 56], [33, 57], [67, 57]].forEach(function (p, i) {
       if (T.length && (i < 4 || r2() < .5)) { var tr = T[Math.floor(r2() * T.length)], hgt = tr.kind === 'bush' ? 6 : 12, s2 = hgt / tr.b; out += svgImg(tr, p[0] - tr.w * s2 / 2, p[1] - tr.b * s2, s2, r2() < .5); }
