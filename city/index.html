@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261124-2124";
+window.RL_BUILD = "20261125-0114";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -274,13 +274,15 @@ body.city #bag { white-space: nowrap; }
   body.city #mid { display: block; overflow: hidden; }
   body.city #title { line-height: 1; }
 }
+/* when it's time to take a tile, the face-up row stands out */
+body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outline-offset: 1px; transform: translateY(-3px); }
 
 </style>
 </head>
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261124-2124</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261125-0114</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -1021,7 +1023,7 @@ body.city #bag { white-space: nowrap; }
   function decor(seed, trackDirs) {
     var r = rng(seed), out = '', inner = {};
     if (trackDirs && trackDirs.length === 2 && ((trackDirs[0] + 2) & 3) !== trackDirs[1]) { var a = trackDirs[0], b = trackDirs[1]; inner[(a === 0 && b === 1) || (a === 1 && b === 0) ? 0 : (a === 1 && b === 2) || (a === 2 && b === 1) ? 1 : (a === 2 && b === 3) || (a === 3 && b === 2) ? 2 : 3] = 1; }
-    var spots = [[0, -2.5], [56, -2.5], [56, 34.5], [0, 34.5]]; // TL TR BR BL
+    var spots = [[3, 0], [53, 0], [53, 33], [3, 33]]; // TL TR BR BL
     for (var q = 0; q < 4; q++) {
       var k = Math.floor(r() * 100000); if (inner[q] || r() < .2) continue;
       var s = corner(k); if (!s) continue;
@@ -1169,6 +1171,18 @@ body.city #bag { white-space: nowrap; }
       S2.wash(ellipse(kx, ky, 34 + r() * 20, 30 + r() * 18, 16, r, .22), hue, { layers: 16, a: .05, spread: 9, edge: .07, edgeW: 1.4, grain: false });
     });
     for (var sp = 0; sp < 14; sp++) { var dx = kx + gauss(r) * 60, dy = ky + gauss(r) * 40, dr = .6 + r() * 2.2; P.wash(ellipse(dx, dy, dr, dr, 8, r, .15), hue, { layers: 3, a: .25, spread: .2, edge: .2 }); }
+    // roads between the blocks: a soft grey wash along every gap, with a faint dashed centre line
+    var runs = [], rk;
+    for (var gy = by0 / H; gy <= by1 / H; gy++) { var run = null; for (var gx = bx0 / W; gx < bx1 / W; gx++) { rk = inside[gx + ',' + gy] || inside[gx + ',' + (gy - 1)]; if (rk && !run) run = [gx, gy]; if ((!rk || gx === bx1 / W - 1) && run) { runs.push(['h', run[0], gy, (rk ? gx + 1 : gx)]); run = null; } } }
+    for (gx = bx0 / W; gx <= bx1 / W; gx++) { run = null; for (gy = by0 / H; gy < by1 / H; gy++) { rk = inside[gx + ',' + gy] || inside[(gx - 1) + ',' + gy]; if (rk && !run) run = [gx, gy]; if ((!rk || gy === by1 / H - 1) && run) { runs.push(['v', gx, run[1], (rk ? gy + 1 : gy)]); run = null; } } }
+    runs.forEach(function (q) {
+      var poly = q[0] === 'h' ? rect(q[1] * W - 3, q[2] * H - 3.4, (q[3] - q[1]) * W + 6, 6.8) : rect(q[1] * W - 3.4, q[2] * H - 3, 6.8, (q[3] - q[2]) * H + 6);
+      P.wash(poly, '#a9a296', { layers: 6, a: .09, spread: .5, edge: .06 });
+    });
+    runs.forEach(function (q) {
+      if (q[0] === 'h') for (var xx = q[1] * W + 4; xx < q[3] * W - 4; xx += 7) P.ink([[xx, q[2] * H], [xx + 3, q[2] * H]], { w: .5, col: '#fbf7ee', a: .8, j: .03 });
+      else for (var yy = q[2] * H + 4; yy < q[3] * H - 4; yy += 7) P.ink([[q[1] * W, yy], [q[1] * W, yy + 3]], { w: .5, col: '#fbf7ee', a: .8, j: .03 });
+    });
     // green land outside the walls, fading raggedly into the paper
     var LK = .25, land = canvas(c.width * LK, c.height * LK), lg = land.getContext('2d'), LP = new Painter(land, R * LK, x0, y0, spec.seed + 2); LP.gs = 1e9;
     LP.wash(rect(x0 - 20, y0 - 20, x1 - x0 + 40, y1 - y0 + 40), '#b7d567', { layers: 8, a: .1, spread: 12, edge: 0, mode: 'source-over', grain: false });
@@ -1317,7 +1331,7 @@ body.city #bag { white-space: nowrap; }
     return s;
   }
   function obstacleTile(t, seed, v) {
-    var r = srand(seed), s = CITY && window.Paint ? '<image href="' + Paint.obstacle(t, seed >>> 0) + '" x="0" y="0" width="100" height="62"/>' : '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + (t === 'lake' ? '#cfe8f3' : t === 'park' ? '#cfe3b8' : '#ece4d4') + '" stroke="#b9c3c8" stroke-width="1.2"/>';
+    var r = srand(seed), s = CITY && window.Paint ? '<rect x="1.5" y="1.5" width="97" height="59" rx="4" fill="rgba(253,250,243,.55)" stroke="rgba(80,64,50,.32)" stroke-width=".8"/><image href="' + Paint.obstacle(t, seed >>> 0) + '" x="0" y="0" width="100" height="62"/>' : '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + (t === 'lake' ? '#cfe8f3' : t === 'park' ? '#cfe3b8' : '#ece4d4') + '" stroke="#b9c3c8" stroke-width="1.2"/>';
     if (CITY && window.Paint) { /* painted */ } else if (t === 'lake') {
       s += '<path d="M14 30 C14 12 40 8 54 12 C74 6 90 18 86 32 C92 48 66 56 48 52 C28 58 12 46 14 30 Z" fill="#4ea8de" stroke="#2a6f97" stroke-width="2"/>';
       s += '<path d="M30 26 q6 -3 12 0 M52 36 q6 -3 12 0 M40 44 q5 -2.5 10 0" stroke="#cfeaf7" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
@@ -1360,8 +1374,7 @@ body.city #bag { white-space: nowrap; }
     }
     var td = dirsOfEdges(def.edges, v.rot, 't'), pdirs = dirsOfEdges(def.edges, v.rot, 'p');
     if (CITY && v.onBoard && window.Paint) {
-      s = '<rect x="1.5" y="1.5" width="97" height="59" rx="4" fill="none" stroke="rgba(80,64,50,.2)" stroke-width=".7"/>';
-      if (v.lock) s += '<image href="' + Paint.tint(v.col, v.seed >>> 0) + '" x="0" y="0" width="100" height="62"/>';
+      s = '<rect x="1.5" y="1.5" width="97" height="59" rx="4" fill="rgba(253,250,243,.55)" stroke="rgba(80,64,50,.32)" stroke-width=".8"/>';
       if (v.seed) s += Paint.decor(v.seed >>> 0, td);
     } else {
       s = '<rect x="1.5" y="1.5" width="97" height="59" rx="8" fill="' + fill + '" stroke="#c3ccd1" stroke-width="1.2"/>';
@@ -1483,7 +1496,7 @@ body.city #bag { white-space: nowrap; }
     ['anim', 'snd'].forEach(function (id) { var l = document.querySelector('label[for="' + id + '"]'); if (l) tb.appendChild(l); });
     var lb = document.querySelector('label[for="anim"]'); if (lb) lb.lastChild.textContent = ' Motion';
     $('top').appendChild(tb);
-    try { new ResizeObserver(function () { if (S) fit(true, true); }).observe(wrap); } catch (e) { /* older browsers: window resize still refits */ }
+    try { new ResizeObserver(function () { keepView(); }).observe(wrap); } catch (e) { /* older browsers: window resize still keeps the view */ }
   }
 
   var bgKey = '';
@@ -1666,7 +1679,11 @@ body.city #bag { white-space: nowrap; }
     var s = Math.max(0.26, Math.min(1.25, Math.min((r.width - 8) / bw, (r.height - 8) / bh)));
     return { s: s, tx: (r.width - bw * s) / 2 - b.x0 * W * s, ty: (r.height - bh * s) / 2 - b.y0 * H * s };
   }
+  function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  var lastWrap = null;
+  function keepView() { var r = wrap.getBoundingClientRect(); if (lastWrap && S && (r.width !== lastWrap.w || r.height !== lastWrap.h)) { view.tx += (r.width - lastWrap.w) / 2; view.ty += (r.height - lastWrap.h) / 2; applyView(); } lastWrap = { w: r.width, h: r.height }; }
   function fit(force, instant) {
+    if (CITY) { var wr = wrap.getBoundingClientRect(); lastWrap = { w: wr.width, h: wr.height }; }
     var b = bounds(), sig = [b.x0, b.y0, b.x1, b.y1].join();
     if (!force && sig === lastBounds) return; lastBounds = sig;
     var t = fitTarget(), f = { s: view.s, tx: view.tx, ty: view.ty };
@@ -1828,7 +1845,12 @@ body.city #bag { white-space: nowrap; }
         else s += '<circle class="pulse" cx="' + px + '" cy="' + py + '" r="5.6" fill="' + COL[o] + '" stroke="' + INK + '" stroke-width="2.2"/><circle cx="' + px + '" cy="' + py + '" r="1.8" fill="#fff"/>';
       });
     });
-    if (S.last && S.last.player !== viewP && !ui.preview) s += '<rect x="' + (S.last.x * W - 1) + '" y="' + (S.last.y * H - 1) + '" width="102" height="64" rx="10" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2.6" stroke-dasharray="2 5" stroke-linecap="round"/>';
+    if (S.last && S.last.player !== viewP && !ui.preview) {
+      if (CITY) { var lx = S.last.x * W, ly = S.last.y * H, lc = DEEP[S.last.player];
+        s += '<rect class="ring" x="' + (lx - 2) + '" y="' + (ly - 2) + '" width="104" height="66" rx="9" fill="none" stroke="' + lc + '" stroke-width="7"/><rect x="' + (lx - 2) + '" y="' + (ly - 2) + '" width="104" height="66" rx="9" fill="none" stroke="#fff" stroke-width="2.4" stroke-dasharray="6 5" stroke-linecap="round"/>' +
+          '<g transform="translate(' + (lx + 50) + ' ' + (ly - 4) + ')"><rect x="-27" y="-9" width="54" height="13" rx="6.5" fill="' + lc + '" stroke="#fff" stroke-width="1.4"/><text y="1.4" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff" font-family="var(--body)">' + esc(NAME[S.last.player]) + '</text></g>'; }
+      else s += '<rect x="' + (S.last.x * W - 1) + '" y="' + (S.last.y * H - 1) + '" width="102" height="64" rx="10" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2.6" stroke-dasharray="2 5" stroke-linecap="round"/>';
+    }
     if (mine && ui.sel !== null) {
       var mp = ui.byType[S.hands[viewP][ui.sel]];
       if (mp) mp.forEach(function (sp) {
@@ -1840,7 +1862,7 @@ body.city #bag { white-space: nowrap; }
     }
     if (mine && ui.preview) {
       var m = ui.preview, e2 = m.res.board.get(E.key(m.x, m.y));
-      s += '<g transform="translate(' + m.x * W + ' ' + m.y * H + ')" opacity=".9">' + paintTile(viewOf(m.res.board, m.res.an, e2)) + '</g><rect x="' + (m.x * W - 1.5) + '" y="' + (m.y * H - 1.5) + '" width="103" height="65" rx="10" fill="none" stroke="' + SIGNAL + '" stroke-width="5"/>';
+      s += '<g transform="translate(' + m.x * W + ' ' + m.y * H + ')" opacity="' + (CITY ? '.45' : '.9') + '">' + paintTile(viewOf(m.res.board, m.res.an, e2)) + '</g><rect x="' + (m.x * W - 1.5) + '" y="' + (m.y * H - 1.5) + '" width="103" height="65" rx="10" fill="none" stroke="' + SIGNAL + '" stroke-width="' + (CITY ? 3.5 : 5) + '"' + (CITY ? ' stroke-dasharray="8 5"' : '') + '/>';
     }
     marksG.innerHTML = s;
     pulseEls = marksG.querySelectorAll('.pulse'); ringEls = marksG.querySelectorAll('.ring');
@@ -1981,7 +2003,7 @@ body.city #bag { white-space: nowrap; }
   }
   function hintFor(t) {
     var mp = ui.byType[t], k = E.DEFS[t].kind;
-    if (!mp || !mp.size) return k === 'sabotage' ? 'Nothing to break right now. It needs plain track of this exact shape (not steel, not already broken) on an unfinished line.' : 'That tile has nowhere to go right now.';
+    if (!mp || !mp.size) return k === 'sabotage' ? 'Nothing to break right now. It needs plain track of this exact shape (not steel, not already broken) on an unfinished line.' : (CITY ? '<span class="hi">This tile can\'t go anywhere yet.</span> Pick a different tile from your hand.' : 'That tile has nowhere to go right now.');
     if (k === 'sabotage') return 'Tap a highlighted track piece to break it.';
     var rep = false; mp.forEach(function (sp) { if (sp.target) rep = true; });
     return 'Tap a highlighted space' + (rep ? ', or a broken track to repair it' : '') + '.' + (E.symmetric(t) ? '' : ' Faint spaces need a rotate.');
@@ -2213,7 +2235,7 @@ body.city #bag { white-space: nowrap; }
       else if (e.key === 'Escape' && ui.sel !== null) selectTile(ui.sel);
     });
     var rz = 0;
-    window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { if (S) fit(true, true); }, 120); });
+    window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { if (!S) return; if (CITY) keepView(); else fit(true, true); }, 120); });
   }
 
 
