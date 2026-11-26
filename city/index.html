@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261126-0035";
+window.RL_BUILD = "20261126-0425";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -282,7 +282,7 @@ body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outl
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261126-0035</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261126-0425</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -1637,7 +1637,6 @@ window.RL_ENDS = {"cds": {"w": 521, "h": 774, "aw": 182, "mid": 262.5, "u": "dat
     if (['track', 'bridge', 'cross', 'combo'].indexOf(def.kind) < 0) return [];
     var td = dirsOfEdges(def.edges, rot, 't'), used = td.concat(dirsOfEdges(def.edges, rot, 'p'), dirsOfEdges(def.edges, rot, 'x')), free = [0, 1, 2, 3].filter(function (d) { return used.indexOf(d) < 0; });
     if (def.kind !== 'combo' && td.length >= 3) return []; // no paths on T tiles
-    if (free.length === 2 && ((free[0] + 2) & 3) === free[1]) return []; // a path would have to cross the track
     return free;
   }
   function ptrack(dirs, col, steel, gold) {
