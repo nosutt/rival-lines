@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261126-2346";
+window.RL_BUILD = "20261126-2354";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -282,7 +282,7 @@ body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outl
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261126-2346</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261126-2354</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -2394,7 +2394,7 @@ window.RL_SQUARES = [["data:image/webp;base64,UklGRh6TAABXRUJQVlA4WAoAAAAQAAAAUw
     if (k === 'penn') return B + 'played Penn.';
     return B + (ev.lineTrack > 1 ? 'extended a line.' : 'laid track.');
   }
-  function says2(ev) { var e2 = Object.assign({}, ev, { marks: null, express: 0, first: 0, expressLine: false }); return says(e2); }
+  function says2(ev) { var e2 = Object.assign({}, ev, { marks: null, express: 0, first: 0, expressLine: false, squares: null }); return says(e2); }
   function note(ev) { if (ev.type === 'take' && ev.player === viewP) return; feed.push({ p: ev.player, t: says(ev) }); if (feed.length > 16) feed.shift(); }
   function sinceLast(p) { var i = feed.length - 1; while (i >= 0 && feed[i].p !== p) i--; var got = feed.slice(i + 1); if (CITY) got = got.filter(function (f) { return f.t.indexOf('face-up tile') < 0; }).slice(-2); return got.map(function (f) { return f.t; }).join(' '); }
 
