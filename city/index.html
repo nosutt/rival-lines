@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <script>
 window.RL_VARIANT = "city";
-window.RL_BUILD = "20261127-0500";
+window.RL_BUILD = "20261127-0505";
 (function () { // check for a newer build: on load, when the page comes back to the front, and every 2 minutes
   function check(onLoad) {
     try {
@@ -282,7 +282,7 @@ body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outl
 <body>
 <div id="app">
   <header id="top">
-    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261127-0500</div></div>
+    <div id="mid"><div id="title">Derail: City</div><div id="bag"></div><div id="ver" style="font-size:11px;color:#9fbdbb;opacity:.7">version 20261127-0505</div></div>
     <div id="chips"></div>
   </header>
   <main id="boardWrap">
@@ -645,7 +645,7 @@ body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outl
     ev.squares = [];
     if (S.rules && S.rules.squares && m.type !== 'sabotage') { S.squares = S.squares || {};
       [[m.x, m.y], [m.x + 1, m.y], [m.x, m.y + 1], [m.x + 1, m.y + 1]].forEach(function (c) { var ck = key(c[0], c[1]);
-        if (S.squares[ck] === undefined && squareAt(S.board, c[0], c[1])) { S.squares[ck] = P; addBonus(S, P, 'square', 3); ev.squares.push(c); } }); }
+        if (S.squares[ck] === undefined && squareAt(S.board, c[0], c[1])) { S.squares[ck] = P; addBonus(S, P, 'square', 10); ev.squares.push(c); } }); }
     var firstNow = S.rules && S.rules.first && S.lines.length === 0;
     res.finished.forEach(function (L) {
       var pts = lineValue(L), lb = label(S, P), who = L.owner >= 0 ? L.owner : P;
@@ -745,8 +745,20 @@ body.city #market .tilebtn.mk:not(.off) { outline: 3px solid var(--signal); outl
   function pts(res, P) { var s = 0; res.finished.forEach(function (L) { s += (L.owner === P ? 1 : -1) * E.lineValue(L); }); return s; }
   function holds(hand, pred) { for (var i = 0; i < hand.length; i++) if (pred(E.DEFS[hand[i]])) return true; return false; }
 
+  function squareValue(S, board, m) { // town squares: worth 10 each, and worth building toward
+    var v = 0;
+    [[m.x, m.y], [m.x + 1, m.y], [m.x, m.y + 1], [m.x + 1, m.y + 1]].forEach(function (c) {
+      if (S.squares && S.squares[E.key(c[0], c[1])] !== undefined) return;
+      if (E.squareAt(board, c[0], c[1])) { v += 12 * 10; return; }
+      var ok = 0, bad = 0;
+      [[c[0] - 1, c[1] - 1, 2, 3], [c[0], c[1] - 1, 0, 3], [c[0] - 1, c[1], 2, 1], [c[0], c[1], 0, 1]].forEach(function (q) { var e = board.get(E.key(q[0], q[1])); if (!e) return; var ps = E.pathSides(board, e); if (ps.indexOf(q[2]) >= 0 && ps.indexOf(q[3]) >= 0) ok++; else bad++; });
+      if (!bad && ok >= 2) v += ok * 2.5;
+    });
+    return v;
+  }
   function base(S, P, m) {
     var def = E.DEFS[m.t], r = m.res, s = Math.random() * 0.8, hand = S.hands[P], L, p;
+    if (S.rules && S.rules.squares && r && r.board) s += squareValue(S, r.board, m);
     var haveStation = holds(hand, function (d) { return d.kind === 'station'; });
     if (m.type === 'place') {
       p = pts(r, P); s += 12 * p;
@@ -2381,7 +2393,7 @@ window.RL_SQUARES = [["data:image/webp;base64,UklGRpKXAABXRUJQVlA4WAoAAAAQAAAAUw
   function says(ev) {
     var B = tag(ev.player) + ' ', f, k;
     if (ev.type === 'take') return B + (ev.blind ? 'drew blind.' : 'took a face-up tile.');
-    var extra = (ev.squares && ev.squares.length ? ' Completed ' + (ev.squares.length > 1 ? ev.squares.length + ' town squares' : 'a town square') + ': <b class="hi">+' + 3 * ev.squares.length + '</b>.' : '') + (ev.marks && ev.marks.length ? ' Built a landmark station: <b class="hi">+1</b>.' : '') + (ev.expressLine ? ' An express line, across the map.' : '') + (ev.first ? ' First line finished: <b class="hi">+3</b>.' : '');
+    var extra = (ev.squares && ev.squares.length ? ' Completed ' + (ev.squares.length > 1 ? ev.squares.length + ' town squares' : 'a town square') + ': <b class="hi">+' + 10 * ev.squares.length + '</b>.' : '') + (ev.marks && ev.marks.length ? ' Built a landmark station: <b class="hi">+1</b>.' : '') + (ev.expressLine ? ' An express line, across the map.' : '') + (ev.first ? ' First line finished: <b class="hi">+3</b>.' : '');
     if (extra && ev.type !== 'swap' && ev.type !== 'pass') return says2(ev) + extra;
     if (ev.type === 'swap') return B + 'traded in tiles.';
     if (ev.type === 'pass') return B + 'passed.';
@@ -2551,7 +2563,7 @@ window.RL_SQUARES = [["data:image/webp;base64,UklGRpKXAABXRUJQVlA4WAoAAAAQAAAAUw
     '<li><b>Finish a line</b> by giving every open end a station. It scores <b>track × stations</b>, turns gold and is locked. A line needs 2 track to finish.</li>' +
     '<li><b>Broken track freezes a line.</b> It goes on plain track of the exact same shape; steel track cannot be broken. Whoever lays that same shape on the break, plain or steel, repairs it and takes the whole line.</li>' +
     '<li><b>Penn</b> (the star) goes on any line: it takes the line and caps that end. It also repairs any break.</li>' +
-    (CITY ? '<li><b>Town squares:</b> when the cobble paths of the four blocks around a road crossing all reach that corner, they form a town square. Whoever lays the tile that completes it scores <b>+3</b>, and the square flies their colours.</li>' : '') +
+    (CITY ? '<li><b>Town squares:</b> when the cobble paths of the four blocks around a road crossing all reach that corner, they form a town square. Whoever lays the tile that completes it scores <b>+10</b>, and the square flies their colours.</li>' : '') +
     (CITY ? '<li><b>Landmarks:</b> track can never run into a park, lake or arch. Lay track alongside one instead: the first track tile laid next to it gets a station there, and that player scores +1 at once and keeps it. Trains stop there, but it does not close the line and does not multiply the line\'s score. Each landmark has only one station.</li><li><b>Bonuses:</b> An express is a finished line with tunnels on two different mountain faces. At the end, +5 goes to one player only: whoever has the longest express line. +3 for the first line finished. At the end, +5 for the longest finished line and +5 for the most stations.</li><li><b>Drawing:</b> after laying a tile, take one of the three face-up tiles, or press Draw random to get one of the three by chance. The row refills from the bag.</li>' : '') +
     (MAP ? '<li><b>The mountains:</b> the board is a 7 by 7 rectangle or a random shape, ringed by mountains. Track that runs into them goes into a tunnel, which caps it and counts as a station.</li>' + (CITY ? '' : '<li><b>Obstacles:</b> lakes, parks and monuments are scattered at the start. Nothing can run into them.</li>') : '') +
     '<li><b>The end:</b> when the tiles run out, unfinished lines score nothing.</li>' +
